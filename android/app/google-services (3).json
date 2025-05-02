@@ -1,0 +1,76 @@
+{
+  "project_info": {
+    "project_number": "88169799241",
+    "project_id": "diabetechapp-67764",
+    "storage_bucket": "diabetechapp-67764.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:88169799241:android:ce9432e3a0cd6fed46e998",
+        "android_client_info": {
+          "package_name": "com.example.diabetechapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "88169799241-g9hp6v9o89jfhh8jqpm497utcc08dmj0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.diabetechapp",
+            "certificate_hash": "b48e611bdb0044b632c7c9c47cbeb7e6dcb69b13"
+          }
+        },
+        {
+          "client_id": "88169799241-ssmuqsle38hr1hnjjbko46fngi4mrfp6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOH69rjnhw5oRgnp3sLgxO_WdY_Kx7RWg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "88169799241-ssmuqsle38hr1hnjjbko46fngi4mrfp6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:88169799241:android:d6ac6711d5496e0946e998",
+        "android_client_info": {
+          "package_name": "com.example.testing"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "88169799241-ssmuqsle38hr1hnjjbko46fngi4mrfp6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOH69rjnhw5oRgnp3sLgxO_WdY_Kx7RWg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "88169799241-ssmuqsle38hr1hnjjbko46fngi4mrfp6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
