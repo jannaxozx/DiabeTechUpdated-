@@ -1,49 +1,35 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-Future<void> addNutritionAndMealData({
-  int calories = 1400,
-  int carbs = 120,
-  int protein = 60,
-  int fats = 50,
-  String mealName = 'Chicken Salad',
-}) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
+class NutritionService {
+  // Hardcoded food-to-nutrition data for now
+  static final Map<String, Map<String, dynamic>> foodNutritionMap = {
+    'chicken': {'calories': 335, 'carbs': 0, 'protein': 30, 'fats': 20},
+    'salad': {'calories': 120, 'carbs': 10, 'protein': 2, 'fats': 8},
+    'rice': {'calories': 200, 'carbs': 45, 'protein': 4, 'fats': 1},
+    'egg': {'calories': 78, 'carbs': 1, 'protein': 6, 'fats': 5},
+    // Add more food items as needed
+  };
 
-  final userId = user.uid;
-  final firestore = FirebaseFirestore.instance;
+  // Function to get nutrition data for a food item
+  Map<String, dynamic>? getNutritionData(String food) {
+    return foodNutritionMap[food];
+  }
 
-  final today = DateTime.now();
-  final nutritionDate = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+  // Future version for fetching nutrition data from Firestore
+  Future<Map<String, dynamic>?> fetchNutritionDataFromFirestore(String food) async {
+    try {
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('nutrition_data')
+          .doc(food.toLowerCase())
+          .get();
 
-  // Save nutrition data
-  await firestore
-      .collection('users')
-      .doc(userId)
-      .collection('nutrition')
-      .doc(nutritionDate)
-      .set({
-        'calories': calories,
-        'carbs': carbs,
-        'protein': protein,
-        'fats': fats,
-        'date': Timestamp.now(),
-      });
-
-  // Save meal data
-  final mealId = firestore.collection('users').doc(userId).collection('meals').doc().id;
-  await firestore
-      .collection('users')
-      .doc(userId)
-      .collection('meals')
-      .doc(mealId)
-      .set({
-        'mealName': mealName,
-        'date': Timestamp.now(),
-        'calories': calories,
-        'carbs': carbs,
-        'protein': protein,
-        'fats': fats,
-      });
+      if (docSnapshot.exists) {
+        return docSnapshot.data() as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print("Error fetching nutrition data: $e");
+      return null;
+    }
+  }
 }

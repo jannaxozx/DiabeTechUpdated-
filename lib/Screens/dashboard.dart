@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:diabetechapp/Screens/edit_profile.dart';
 import 'package:diabetechapp/Screens/foodscanner.dart';
 import 'package:diabetechapp/Screens/log_in.dart';
+import 'package:diabetechapp/health/healthtips.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({Key? key}) : super(key: key);
@@ -53,43 +54,58 @@ class _DashboardState extends State<Dashboard> {
             },
           ),
           IconButton(
-          icon: const Icon(Icons.logout),
-          onPressed: () async {
-            await FirebaseAuth.instance.signOut();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Logged out successfully')),
-            );
-            // Navigate to login screen after sign out
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const Login_Screen()), // Assuming you have a LoginScreen widget
-            );
-          },
-        ),
-
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Logged out successfully')),
+              );
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const Login_Screen()),
+              );
+            },
+          ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: ListView(
-          children: [
-            Text("Welcome, $name", style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 30),
-            buildProfileCard(name, email),
-            const SizedBox(height: 30),
-            buildDailyNutrientCard(),
-            buildMealHistoryCard(),
-            buildProgressTrackingCard(),
-            buildHealthTipsCard(),
-            const Text("More features coming soon...", style: TextStyle(color: Colors.grey)),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodScannerScreen()));
-        },
-        child: const Icon(Icons.camera_alt),
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/images/dash.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: ListView(
+              children: [
+                Text(
+                  "Welcome, $name",
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 30),
+                buildProfileCard(name, email),
+                const SizedBox(height: 30),
+                buildFoodScannerCard(),
+                const SizedBox(height: 30),
+                buildDailyNutrientCard(),
+                buildMealHistoryCard(),
+                buildProgressTrackingCard(),
+                buildHealthTipsCard(),
+                const Text(
+                  "More features coming soon...",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -109,6 +125,25 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 
+  Widget buildFoodScannerCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodScannerScreen()));
+        },
+        leading: const Icon(Icons.camera_alt, size: 40, color: Colors.teal),
+        title: const Text(
+          "Scan Your Meal",
+          style: TextStyle(color: Colors.teal),
+        ),
+        subtitle: const Text("Tap to open the camera and scan your food."),
+        trailing: const Icon(Icons.arrow_forward_ios),
+      ),
+    );
+  }
+
   Widget buildDailyNutrientCard() {
     return buildSection(
       title: "Daily Nutrient Summary",
@@ -116,6 +151,8 @@ class _DashboardState extends State<Dashboard> {
       iconColor: Colors.teal,
       cardTitle: "Calories: 1340 kcal",
       cardSubtitle: "Carbs: 120g | Protein: 75g | Fats: 50g",
+      titleColor: Colors.teal,
+      subtitleColor: Colors.black,
     );
   }
 
@@ -126,6 +163,8 @@ class _DashboardState extends State<Dashboard> {
       iconColor: Colors.teal,
       cardTitle: "Chicken Salad",
       cardSubtitle: "Logged on: 2025-04-23",
+      titleColor: Colors.teal,
+      subtitleColor: Colors.black,
     );
   }
 
@@ -136,16 +175,46 @@ class _DashboardState extends State<Dashboard> {
       iconColor: Colors.teal,
       cardTitle: "Goal Progress",
       cardSubtitle: "Calories: 1340 / 2000 kcal",
+      titleColor: Colors.teal,
+      subtitleColor: Colors.black,
     );
   }
 
   Widget buildHealthTipsCard() {
-    return buildSection(
-      title: "Health Tips",
-      icon: Icons.notifications,
-      iconColor: Colors.teal,
-      cardTitle: "Drink more water!",
-      cardSubtitle: "Staying hydrated is important for managing diabetes.",
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "FOOD TIPS",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        const SizedBox(height: 10),
+        Card(
+          elevation: 4,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+          ),
+          child: ListTile(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HealthTipsScreen()),
+              );
+            },
+            leading: const Icon(Icons.notifications, size: 40, color: Colors.teal),
+            title: const Text(
+              "DO AND DON'T",
+              style: TextStyle(color: Colors.teal),
+            ),
+            subtitle: const Text(
+              "Do and Don't foods are important for managing diabetes.",
+              style: TextStyle(color: Colors.black),
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios),
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
     );
   }
 
@@ -155,11 +224,16 @@ class _DashboardState extends State<Dashboard> {
     required Color iconColor,
     required String cardTitle,
     required String cardSubtitle,
+    Color titleColor = Colors.white,
+    Color subtitleColor = Colors.grey,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         const SizedBox(height: 10),
         Card(
           elevation: 4,
@@ -168,8 +242,14 @@ class _DashboardState extends State<Dashboard> {
           ),
           child: ListTile(
             leading: Icon(icon, size: 40, color: iconColor),
-            title: Text(cardTitle),
-            subtitle: Text(cardSubtitle),
+            title: Text(
+              cardTitle,
+              style: TextStyle(color: titleColor),
+            ),
+            subtitle: Text(
+              cardSubtitle,
+              style: TextStyle(color: subtitleColor),
+            ),
           ),
         ),
         const SizedBox(height: 20),
