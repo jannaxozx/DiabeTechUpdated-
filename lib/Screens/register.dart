@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // <-- add this
 import 'package:diabetechapp/Screens/dashboard.dart';
 import 'package:diabetechapp/Screens/log_in.dart';
 
@@ -17,13 +18,30 @@ class _RegisterState extends State<Register> {
 
   void _registerUser() async {
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      UserCredential userCredential =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      User? user = userCredential.user;
+
+      if (user != null) {
+        // Save user data to Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid) // <-- document ID = UID
+            .set({
+          'email': user.email,
+          'role': 'user', // default role
+          'createdAt': DateTime.now(),
+        });
+      }
+
+      // Navigate to dashboard
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const Login_Screen()),
+        MaterialPageRoute(builder: (context) => const Dashboard()),
       );
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -35,156 +53,167 @@ class _RegisterState extends State<Register> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true, // So image goes under AppBar
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Padding(
-          padding: const EdgeInsets.only(top: 25.0), // Adjusted space above the title
-          child: const Text(
-            "DiabeTech",
-            style: TextStyle(fontSize: 50, fontWeight: FontWeight.w600,),
+        centerTitle: true,
+        title: const Text(
+          "DiabeTech",
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
-        centerTitle: true,
       ),
       body: Stack(
         children: [
-          // Background image covering entire screen
+          // Background image
           SizedBox.expand(
             child: Image.asset(
-              "assets/images/ground.png", // Ensure this image is large and high-res
+              "assets/images/ground.png",
               fit: BoxFit.cover,
             ),
           ),
-           const SizedBox(height: 20),
 
-          // Form UI over background
+          // Form
           SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 150, 16, 30), // Increased top padding to lower the content
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center, 
-              
-              children: [
-                SizedBox(
-                  height: 150,
-                  width: 150,
-                  child: Image.asset("assets/images/DiabeTechLogo.png"),
-                ),
-                const SizedBox(height: 20), // Added more space below the logo
-                const Text(
-                  "Welcome",
-                  style: TextStyle(fontSize: 25, fontWeight: FontWeight.w600, color: Color.fromARGB(255, 1, 73, 25),),
-                ),
-                const SizedBox(height: 20),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 100, 16, 30),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Logo
+                  SizedBox(
+                    height: 150,
+                    width: 150,
+                    child: Image.asset("assets/images/DiabeTechLogo.png"),
+                  ),
+                  const SizedBox(height: 15),
 
-                // Email TextField
-                Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: TextField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      labelStyle: const TextStyle(color: Colors.white),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: Colors.white),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: const BorderSide(color: Colors.teal),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                  const Text(
+                    "Welcome",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 25),
 
-                // Password TextField
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscureText,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      labelStyle: const TextStyle(color: Colors.white),
-                      enabledBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white),
-                      ),
-                      focusedBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.teal),
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureText ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.white,
+                  // Email input
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    child: TextField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      style: const TextStyle(color: Colors.black),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.9),
+                        labelText: 'Email',
+                        labelStyle: const TextStyle(color: Colors.black),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureText = !_obscureText;
-                          });
-                        },
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 15),
 
-                const SizedBox(height: 20),
-
-                // Register Button
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: InkWell(
-                    onTap: _registerUser,
-                    child: Container(
-                      height: 55,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: const Color.fromARGB(255, 79, 167, 82),
-                        borderRadius: BorderRadius.circular(10),
+                  // Password input
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    child: TextFormField(
+                      controller: _passwordController,
+                      obscureText: _obscureText,
+                      style: const TextStyle(color: Colors.black),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.9),
+                        labelText: 'Password',
+                        labelStyle: const TextStyle(color: Colors.black),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureText
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: Colors.black,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscureText = !_obscureText;
+                            });
+                          },
+                        ),
                       ),
-                      child: const Center(
-                        child: Text(
-                          "REGISTER",
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+
+                  // Register button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    child: InkWell(
+                      onTap: _registerUser,
+                      child: Container(
+                        height: 55,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF42A546), // green
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "REGISTER",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 15),
 
-                // Already have account
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10, bottom: 10, right: 15),
-                      child: InkWell(
+                  // Already have account?
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        "Already have an account? ",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black,
+                        ),
+                      ),
+                      InkWell(
                         onTap: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (context) => const Login_Screen()),
+                            MaterialPageRoute(
+                                builder: (context) => const LoginScreen()),
                           );
                         },
                         child: const Text(
-                          "Already have an Account?",
+                          "Login",
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  )
+                ],
+              ),
             ),
           ),
         ],

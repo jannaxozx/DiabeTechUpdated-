@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:diabetechapp/Screens/log_in.dart';
-import 'package:diabetechapp/Screens/Register.dart'; 
+import 'landing_page.dart'; // ✅ Import your LandingPage
 
 class OnboardScreen extends StatefulWidget {
   const OnboardScreen({Key? key}) : super(key: key);
@@ -26,17 +25,10 @@ class _OnboardScreenState extends State<OnboardScreen> {
     super.dispose();
   }
 
-  void _goToLogin() {
+  void _goToLandingPage() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const Login_Screen()),
-    );
-  }
-
-  void _goToSignup() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const Register()),
+      MaterialPageRoute(builder: (context) => const LandingPage()), // ✅ fixed
     );
   }
 
@@ -110,32 +102,16 @@ class _OnboardScreenState extends State<OnboardScreen> {
             const SizedBox(height: 20),
             Padding(
               padding: const EdgeInsets.only(bottom: 50),
-              child: Column(
-                children: [
-                  ElevatedButton(
-                    onPressed: _goToLogin,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: Size(double.infinity, 50),
-                      backgroundColor: Colors.blue,
-                    ),
-                    child: const Text(
-                      "Login",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: _goToSignup,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: Size(double.infinity, 50),
-                      side: const BorderSide(color: Colors.blue),
-                    ),
-                    child: const Text(
-                      "Create Account",
-                      style: TextStyle(color: Colors.blue),
-                    ),
-                  ),
-                ],
+              child: ElevatedButton(
+                onPressed: _goToLandingPage, // ✅ now goes to LandingPage
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: Colors.blue,
+                ),
+                child: const Text(
+                  "Continue",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ],

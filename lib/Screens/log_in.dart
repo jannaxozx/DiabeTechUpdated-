@@ -1,146 +1,162 @@
-import 'package:diabetechapp/Screens/dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:diabetechapp/Screens/ForgotPasswordScreen.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:diabetechapp/Screens/register.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class Login_Screen extends StatefulWidget {
-  const Login_Screen({super.key});
+import 'register.dart';
+import 'ForgotPasswordScreen.dart';
+import 'dashboard.dart';
+import 'admin_dashboard.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   @override
-  State<Login_Screen> createState() => _Login_ScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _Login_ScreenState extends State<Login_Screen> {
-  bool _obscureText = true;
+class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  bool _obscureText = true;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _isLoading = false;
 
+  // ---------------- Login with Email + Role Check ----------------
+  Future<void> _loginUser() async {
+    setState(() => _isLoading = true);
+    try {
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      User? user = userCredential.user;
+      if (user == null) throw Exception("User not found");
+
+      // 🔑 Fetch role from Firestore
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .get();
+
+      String role;
+      if (userDoc.exists && userDoc.data() != null) {
+        role = (userDoc.data() as Map<String, dynamic>)['role'] ?? "user";
+      } else {
+        // Default: normal user if no record exists
+        role = "user";
+        await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
+          "email": user.email,
+          "role": "user",
+        });
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Login Successful as $role")),
+      );
+
+      // 🔑 Redirect based on role
+      if (role == "admin") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const Dashboard()),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? "Login failed")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // ---------------- Google Sign-In with Role Check ----------------
   Future<void> _signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) return;
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const Dashboard()));
+      UserCredential userCredential =
+          await _auth.signInWithCredential(credential);
+
+      User? user = userCredential.user;
+      if (user == null) throw Exception("Google Sign-In failed");
+
+      DocumentReference userDoc =
+          FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+      if (!(await userDoc.get()).exists) {
+        await userDoc.set({
+          'email': user.email,
+          'role': 'user', // default role
+        });
+      }
+
+      DocumentSnapshot snapshot = await userDoc.get();
+      String role = (snapshot.data() as Map<String, dynamic>)['role'] ?? "user";
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Signed in as $role")),
+      );
+
+      if (role == "admin") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const Dashboard()),
+        );
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google Sign-In failed: $e')),
+        SnackBar(content: Text("Google Sign-In Failed: $e")),
       );
     }
   }
 
+  // ---------------- Placeholder for Phone Sign-In ----------------
   Future<void> _signInWithPhone() async {
-    final phoneController = TextEditingController();
-    final codeController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Enter your phone number'),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(labelText: 'Phone number'),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter a valid phone number';
-                }
-                return null;
-              },
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancel')),
-            TextButton(
-              onPressed: () async {
-                if (formKey.currentState!.validate()) {
-                  Navigator.of(context).pop();
-
-                  await FirebaseAuth.instance.verifyPhoneNumber(
-                    phoneNumber: phoneController.text.trim(),
-                    verificationCompleted: (PhoneAuthCredential credential) async {
-                      await FirebaseAuth.instance.signInWithCredential(credential);
-                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const Dashboard()));
-                    },
-                    verificationFailed: (FirebaseAuthException e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Phone auth failed: ${e.message}')),
-                      );
-                    },
-                    codeSent: (String verificationId, int? resendToken) async {
-                      await showDialog(
-                        context: context,
-                        builder: (context) {
-                          return AlertDialog(
-                            title: Text('Enter the verification code'),
-                            content: TextField(
-                              controller: codeController,
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(labelText: '6-digit code'),
-                            ),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancel')),
-                              TextButton(
-                                onPressed: () async {
-                                  String smsCode = codeController.text.trim();
-                                  PhoneAuthCredential credential = PhoneAuthProvider.credential(
-                                    verificationId: verificationId,
-                                    smsCode: smsCode,
-                                  );
-                                  try {
-                                    await FirebaseAuth.instance.signInWithCredential(credential);
-                                    Navigator.of(context).pop();
-                                    Navigator.pushReplacement(
-                                        context, MaterialPageRoute(builder: (context) => const Dashboard()));
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Invalid code. Please try again.')),
-                                    );
-                                  }
-                                },
-                                child: Text('Verify'),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                    codeAutoRetrievalTimeout: (String verificationId) {},
-                  );
-                }
-              },
-              child: Text('Send Code'),
-            ),
-          ],
-        );
-      },
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Phone Sign-In not implemented")),
     );
   }
 
-  void _loginUser() async {
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const Dashboard()));
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Login failed")),
-      );
-    }
+  // ---------------- Social Button Widget ----------------
+  Widget socialButton(String imagePath, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 50,
+        width: 50,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.black),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Image.asset(imagePath),
+      ),
+    );
   }
 
   @override
@@ -148,61 +164,78 @@ class _Login_ScreenState extends State<Login_Screen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Background image covering entire screen
+          // Background
           SizedBox.expand(
             child: Image.asset(
-              "assets/images/ground.png", // Ensure this image is large and high-res
+              "assets/images/ground.png",
               fit: BoxFit.cover,
             ),
           ),
-           const SizedBox(height: 20),
 
-          // Content
+          // Form
           SingleChildScrollView(
             child: Column(
               children: [
                 const SizedBox(height: 60),
                 Center(
-                  child: Container(
+                  child: SizedBox(
                     height: 150,
                     width: 150,
                     child: Image.asset("assets/images/DiabeTechLogo.png"),
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text("Welcome Back", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 10),
+                const Text("Welcome Back",
+                    style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black)),
+                const SizedBox(height: 20),
+
+                // Email
                 Padding(
                   padding: const EdgeInsets.all(15),
                   child: TextField(
                     controller: _emailController,
                     decoration: InputDecoration(
-                      labelText: 'Email',
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.8),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      fillColor: Colors.white,
+                      labelText: 'Email',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                 ),
+
+                // Password
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 15),
                   child: TextFormField(
                     controller: _passwordController,
                     obscureText: _obscureText,
                     decoration: InputDecoration(
-                      labelText: 'Password',
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.8),
-                      border: OutlineInputBorder(),
+                      fillColor: Colors.white,
+                      labelText: 'Password',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       suffixIcon: IconButton(
-                        icon: Icon(_obscureText ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () {
-                          setState(() => _obscureText = !_obscureText);
-                        },
+                        icon: Icon(
+                          _obscureText
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.black,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscureText = !_obscureText),
                       ),
                     ),
                   ),
                 ),
+
+                // Forgot password
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -210,106 +243,112 @@ class _Login_ScreenState extends State<Login_Screen> {
                       padding: const EdgeInsets.symmetric(horizontal: 15),
                       child: InkWell(
                         onTap: () {
-                          Navigator.push(context,
-                              MaterialPageRoute(builder: (context) => const PasswordResetScreen()));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    const PasswordResetScreen()),
+                          );
                         },
-                        child: Text("Forgot Password?",
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color:  Colors.white)),
+                        child: const Text("Forgot Password?",
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black)),
                       ),
                     ),
                   ],
                 ),
+
+                // Login button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 15),
                   child: InkWell(
-                    onTap: _loginUser,
+                    onTap: _isLoading ? null : _loginUser,
                     child: Container(
                       height: 55,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: const Color.fromARGB(255, 79, 167, 82),
+                        color: const Color.fromRGBO(66, 173, 70, 1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Center(
-                        child: Text("LOGIN", style: TextStyle(fontSize: 16, color: Colors.white)),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text("LOGIN",
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.white)),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 15),
+
+                const SizedBox(height: 20),
+
+                // OR continue with
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 25.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 30),
                   child: Row(
-                    children: [
-                      Expanded(child: Divider(thickness: 0.7, color: Colors.black)),
+                    children: const [
+                      Expanded(
+                          child: Divider(color: Colors.black, thickness: 2)),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                        child: Text('Or continue with', style: TextStyle(color: Colors.black, fontSize: 18)),
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text("or continue with",
+                            style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600)),
                       ),
-                      Expanded(child: Divider(thickness: 0.7, color: Colors.black)),
+                      Expanded(
+                          child: Divider(color: Colors.black, thickness: 2)),
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 15),
+
+                // Social buttons
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Google Button
                     socialButton("assets/images/GoogleLogo.png", _signInWithGoogle),
                     const SizedBox(width: 20),
-                    // Phone Button
                     socialButton("assets/images/PhoneLogo.png", _signInWithPhone),
                   ],
                 ),
-                const SizedBox(height: 15),
+
+                const SizedBox(height: 20),
+
+                // Not a member? Register Now
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("Not a member?", style: TextStyle(color: Colors.black, fontSize: 15)),
+                    const Text("Not a member?",
+                        style: TextStyle(fontSize: 15, color: Colors.black)),
                     const SizedBox(width: 4),
                     GestureDetector(
                       onTap: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (context) => const Register()),
+                          MaterialPageRoute(
+                              builder: (context) => const Register()),
                         );
                       },
-                      child: Text("Register Now",
-                          style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+                      child: const Text("Register Now",
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black)),
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 30),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget socialButton(String assetPath, VoidCallback onTap) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        splashColor: Colors.green.withOpacity(0.2),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.2),
-                blurRadius: 4,
-                offset: Offset(2, 2),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-          child: Image.asset(assetPath, height: 30),
-        ),
       ),
     );
   }

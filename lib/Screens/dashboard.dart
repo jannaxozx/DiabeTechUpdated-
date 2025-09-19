@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:diabetechapp/Screens/edit_profile.dart';
 import 'package:diabetechapp/Screens/foodscanner.dart';
-import 'package:diabetechapp/Screens/log_in.dart';
+import 'package:diabetechapp/Screens/log_in.dart'; // ✅ Make sure LoginScreen exists here
 import 'package:diabetechapp/health/healthtips.dart';
+import 'package:diabetechapp/health/meal.dart';
+import 'package:diabetechapp/health/nutrient_summary.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({Key? key}) : super(key: key);
@@ -57,12 +59,13 @@ class _DashboardState extends State<Dashboard> {
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
+              if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Logged out successfully')),
               );
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const Login_Screen()),
+                MaterialPageRoute(builder: (context) => const LoginScreen()), // ✅ fixed
               );
             },
           ),
@@ -134,10 +137,7 @@ class _DashboardState extends State<Dashboard> {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodScannerScreen()));
         },
         leading: const Icon(Icons.camera_alt, size: 40, color: Colors.teal),
-        title: const Text(
-          "Scan Your Meal",
-          style: TextStyle(color: Colors.teal),
-        ),
+        title: const Text("Scan Your Meal", style: TextStyle(color: Colors.teal)),
         subtitle: const Text("Tap to open the camera and scan your food."),
         trailing: const Icon(Icons.arrow_forward_ios),
       ),
@@ -145,26 +145,36 @@ class _DashboardState extends State<Dashboard> {
   }
 
   Widget buildDailyNutrientCard() {
-    return buildSection(
-      title: "Daily Nutrient Summary",
-      icon: Icons.restaurant_menu,
-      iconColor: Colors.teal,
-      cardTitle: "Calories: 1340 kcal",
-      cardSubtitle: "Carbs: 120g | Protein: 75g | Fats: 50g",
-      titleColor: Colors.teal,
-      subtitleColor: Colors.black,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const NutrientSummaryScreen()));
+      },
+      child: buildSection(
+        title: "Daily Nutrient Summary",
+        icon: Icons.restaurant_menu,
+        iconColor: Colors.teal,
+        cardTitle: "Nutrients Tracking",
+        cardSubtitle: "Carbs: 120g | Protein: 75g | Fats: 50g | Sugar: 50g | Calories: 45kcal",
+        titleColor: Colors.teal,
+        subtitleColor: Colors.black,
+      ),
     );
   }
 
   Widget buildMealHistoryCard() {
-    return buildSection(
-      title: "Meal Log History",
-      icon: Icons.fastfood,
-      iconColor: Colors.teal,
-      cardTitle: "Chicken Salad",
-      cardSubtitle: "Logged on: 2025-04-23",
-      titleColor: Colors.teal,
-      subtitleColor: Colors.black,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const MealLogScreen()));
+      },
+      child: buildSection(
+        title: "Scan and Meal Log History",
+        icon: Icons.fastfood,
+        iconColor: Colors.teal,
+        cardTitle: "Recent Scan/Meal Log",
+        cardSubtitle: "View History",
+        titleColor: Colors.teal,
+        subtitleColor: Colors.black,
+      ),
     );
   }
 
@@ -202,10 +212,7 @@ class _DashboardState extends State<Dashboard> {
               );
             },
             leading: const Icon(Icons.notifications, size: 40, color: Colors.teal),
-            title: const Text(
-              "DO AND DON'T",
-              style: TextStyle(color: Colors.teal),
-            ),
+            title: const Text("DO AND DON'T", style: TextStyle(color: Colors.teal)),
             subtitle: const Text(
               "Do and Don't foods are important for managing diabetes.",
               style: TextStyle(color: Colors.black),
@@ -242,14 +249,8 @@ class _DashboardState extends State<Dashboard> {
           ),
           child: ListTile(
             leading: Icon(icon, size: 40, color: iconColor),
-            title: Text(
-              cardTitle,
-              style: TextStyle(color: titleColor),
-            ),
-            subtitle: Text(
-              cardSubtitle,
-              style: TextStyle(color: subtitleColor),
-            ),
+            title: Text(cardTitle, style: TextStyle(color: titleColor)),
+            subtitle: Text(cardSubtitle, style: TextStyle(color: subtitleColor)),
           ),
         ),
         const SizedBox(height: 20),
