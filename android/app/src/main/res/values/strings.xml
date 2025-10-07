@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ✅ Facebook App Configuration -->
+    <string name="facebook_app_id">1026888019476120</string>
+    <string name="facebook_client_token">0935400ad27f51b594e105c5d27863cd</string>
+    <string name="fb_login_protocol_scheme">fb1026888019476120</string>
+
+    <!-- App Name -->
+    <string name="app_name">DiabeTech</string>
+</resources>

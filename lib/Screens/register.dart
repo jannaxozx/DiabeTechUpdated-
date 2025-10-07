@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // <-- add this
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:diabetechapp/Screens/dashboard.dart';
 import 'package:diabetechapp/Screens/log_in.dart';
 
@@ -13,6 +13,7 @@ class Register extends StatefulWidget {
 
 class _RegisterState extends State<Register> {
   bool _obscureText = true;
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -27,18 +28,20 @@ class _RegisterState extends State<Register> {
       User? user = userCredential.user;
 
       if (user != null) {
+        // Update display name
+        await user.updateDisplayName(_nameController.text.trim());
+        await user.reload(); // refresh user info
+
         // Save user data to Firestore
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid) // <-- document ID = UID
-            .set({
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'name': _nameController.text.trim(),
           'email': user.email,
-          'role': 'user', // default role
+          'role': 'user',
           'createdAt': DateTime.now(),
         });
       }
 
-      // Navigate to dashboard
+      // Navigate to Dashboard
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const Dashboard()),
@@ -102,9 +105,28 @@ class _RegisterState extends State<Register> {
                   ),
                   const SizedBox(height: 25),
 
+                  // Name input
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                    child: TextField(
+                      controller: _nameController,
+                      keyboardType: TextInputType.name,
+                      style: const TextStyle(color: Colors.black),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.9),
+                        labelText: 'Full Name',
+                        labelStyle: const TextStyle(color: Colors.black),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+
                   // Email input
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                     child: TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
@@ -120,11 +142,10 @@ class _RegisterState extends State<Register> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 15),
 
                   // Password input
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                     child: TextFormField(
                       controller: _passwordController,
                       obscureText: _obscureText,
@@ -139,9 +160,7 @@ class _RegisterState extends State<Register> {
                         ),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscureText
-                                ? Icons.visibility_off
-                                : Icons.visibility,
+                            _obscureText ? Icons.visibility_off : Icons.visibility,
                             color: Colors.black,
                           ),
                           onPressed: () {
@@ -164,7 +183,7 @@ class _RegisterState extends State<Register> {
                         height: 55,
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF42A546), // green
+                          color: const Color(0xFF42A546),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Center(
@@ -197,8 +216,7 @@ class _RegisterState extends State<Register> {
                         onTap: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(
-                                builder: (context) => const LoginScreen()),
+                            MaterialPageRoute(builder: (context) => const LoginScreen()),
                           );
                         },
                         child: const Text(
@@ -211,7 +229,7 @@ class _RegisterState extends State<Register> {
                         ),
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),

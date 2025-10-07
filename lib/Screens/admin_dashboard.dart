@@ -2,346 +2,397 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:diabetechapp/Screens/landing_page.dart';
+import 'package:diabetechapp/Screens/user_food_log_screen.dart';
+import 'package:diabetechapp/Screens/edit_user_screen.dart';
 
-class AdminDashboard extends StatelessWidget {
+class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
 
+  @override
+  State<AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends State<AdminDashboard> {
+  int _selectedIndex = 0;
+  String searchQuery = "";
+
   Future<void> _logout(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Logged out successfully")),
-    );
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const LandingPage()),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Admin Dashboard"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
-          ),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection("users").snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("No users found"));
-          }
-
-          final users = snapshot.data!.docs;
-
-          return ListView.builder(
-            itemCount: users.length,
-            itemBuilder: (context, index) {
-              var user = users[index];
-              String name = user['name'] ?? "No Name";
-              String email = user['email'] ?? "No Email";
-              String role = user['role'] ?? "user";
-
-              return Card(
-                child: ListTile(
-                  title: Text(name),
-                  subtitle: Text("$email\nRole: $role"),
-                  isThreeLine: true,
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == "viewLogs") {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => UserFoodLogScreen(
-                              userId: user.id,
-                              userName: name,
-                            ),
-                          ),
-                        );
-                      } else if (value == "editUser") {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                EditUserScreen(userId: user.id, userData: user),
-                          ),
-                        );
-                      } else if (value == "deleteUser") {
-                        FirebaseFirestore.instance
-                            .collection("users")
-                            .doc(user.id)
-                            .delete();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("User deleted")),
-                        );
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                          value: "viewLogs", child: Text("View Food Logs")),
-                      const PopupMenuItem(
-                          value: "editUser", child: Text("Edit User")),
-                      const PopupMenuItem(
-                          value: "deleteUser", child: Text("Delete User")),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ✅ User Food Log Screen with Add/Delete
-class UserFoodLogScreen extends StatelessWidget {
-  final String userId;
-  final String userName;
-
-  const UserFoodLogScreen(
-      {super.key, required this.userId, required this.userName});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("$userName's Food Logs")),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection("users")
-            .doc(userId)
-            .collection("foodLogs")
-            .orderBy("timestamp", descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("No food logs found"));
-          }
-
-          final logs = snapshot.data!.docs;
-
-          return ListView.builder(
-            itemCount: logs.length,
-            itemBuilder: (context, index) {
-              var log = logs[index];
-              String foodName = log['food'] ?? "Unknown food";
-              int calories = log['calories'] ?? 0;
-
-              return Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: ListTile(
-                  title: Text(foodName),
-                  subtitle: Text("Calories: $calories"),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      await FirebaseFirestore.instance
-                          .collection("users")
-                          .doc(userId)
-                          .collection("foodLogs")
-                          .doc(log.id)
-                          .delete();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Food log deleted")),
-                      );
-                    },
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  AddFoodLogScreen(userId: userId, userName: userName),
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-}
-
-// ✅ Add Food Log Screen
-class AddFoodLogScreen extends StatefulWidget {
-  final String userId;
-  final String userName;
-
-  const AddFoodLogScreen(
-      {super.key, required this.userId, required this.userName});
-
-  @override
-  State<AddFoodLogScreen> createState() => _AddFoodLogScreenState();
-}
-
-class _AddFoodLogScreenState extends State<AddFoodLogScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController foodController = TextEditingController();
-  final TextEditingController caloriesController = TextEditingController();
-
-  Future<void> _saveLog() async {
-    if (_formKey.currentState!.validate()) {
-      await FirebaseFirestore.instance
-          .collection("users")
-          .doc(widget.userId)
-          .collection("foodLogs")
-          .add({
-        "food": foodController.text,
-        "calories": int.tryParse(caloriesController.text) ?? 0,
-        "timestamp": FieldValue.serverTimestamp(),
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Food log added")),
+    try {
+      await FirebaseAuth.instance.signOut();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LandingPage()),
       );
-
-      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Logout failed: $e")),
+      );
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("Add Food Log for ${widget.userName}")),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
+  void _confirmLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Logout"),
+        content: const Text("Are you sure you want to log out?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _logout(context);
+            },
+            child: const Text(
+              "Logout",
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            spreadRadius: 1,
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: TextStyle(
+                  fontSize: 15, color: color, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 28, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserList() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection("users").snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(child: Text("No users found"));
+        }
+
+        final users = snapshot.data!.docs.where((doc) {
+          var data = doc.data() as Map<String, dynamic>;
+          String role = data["role"] ?? "user";
+          String name = (data['name'] ?? "").toString().toLowerCase();
+          String email = (data['email'] ?? "").toString().toLowerCase();
+          if (role == "admin") return false;
+          return name.contains(searchQuery) || email.contains(searchQuery);
+        }).toList();
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          itemCount: users.length,
+          itemBuilder: (context, index) {
+            var user = users[index];
+            var data = user.data() as Map<String, dynamic>? ?? {};
+            String name = data['name'] ?? "No Name";
+            String email = data['email'] ?? "No Email";
+            String role = data['role'] ?? "user";
+
+            return Card(
+              elevation: 2,
+              margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.green.shade100,
+                  child: Icon(Icons.person, color: Colors.green.shade700),
+                ),
+                title: Text(name,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text("$email\nRole: $role"),
+                isThreeLine: true,
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == "viewLogs") {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => UserFoodLogScreen(
+                            userId: user.id,
+                            userName: name,
+                          ),
+                        ),
+                      );
+                    } else if (value == "editUser") {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EditUserScreen(
+                            userId: user.id,
+                            userData: data,
+                          ),
+                        ),
+                      );
+                    } else if (value == "deleteUser") {
+                      FirebaseFirestore.instance
+                          .collection("users")
+                          .doc(user.id)
+                          .delete();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("User deleted")),
+                      );
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                        value: "viewLogs", child: Text("View Food Logs")),
+                    const PopupMenuItem(
+                        value: "editUser", child: Text("Edit User")),
+                    const PopupMenuItem(
+                        value: "deleteUser", child: Text("Delete User")),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFoodDataTab() {
+    TextEditingController nameController = TextEditingController();
+    String category = "Do";
+
+    Future<void> addFood() async {
+      if (nameController.text.isEmpty) return;
+
+      await FirebaseFirestore.instance.collection("diabetic_foods").add({
+        "name": nameController.text,
+        "category": category,
+        "createdAt": Timestamp.now(),
+      });
+
+      nameController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Food added successfully")),
+      );
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
             children: [
-              TextFormField(
-                controller: foodController,
-                decoration: const InputDecoration(
-                  labelText: "Food Name",
-                  border: OutlineInputBorder(),
+              Expanded(
+                child: TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    hintText: "Enter food name",
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Enter a food name" : null,
               ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: caloriesController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: "Calories",
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? "Enter calories" : null,
+              const SizedBox(width: 10),
+              DropdownButton<String>(
+                value: category,
+                items: const [
+                  DropdownMenuItem(
+                      value: "Do", child: Text("Do (Recommended)")),
+                  DropdownMenuItem(value: "Don't", child: Text("Don't (Avoid)")),
+                ],
+                onChanged: (value) {
+                  setState(() => category = value!);
+                },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(width: 10),
               ElevatedButton(
-                onPressed: _saveLog,
-                child: const Text("Save Log"),
+                onPressed: addFood,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Add"),
               ),
             ],
           ),
         ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection("diabetic_foods")
+                .orderBy("createdAt", descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final foods = snapshot.data!.docs;
+
+              return ListView.builder(
+                itemCount: foods.length,
+                itemBuilder: (context, index) {
+                  final food = foods[index];
+                  final data = food.data() as Map<String, dynamic>;
+
+                  return ListTile(
+                    title: Text(data["name"] ?? ""),
+                    subtitle: Text("Category: ${data["category"]}"),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        FirebaseFirestore.instance
+                            .collection("diabetic_foods")
+                            .doc(food.id)
+                            .delete();
+                      },
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReportsTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection("food_logs").snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+
+        final logs = snapshot.data!.docs;
+        int totalLogs = logs.length;
+
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text("Total Food Logs: $totalLogs",
+                  style: TextStyle(
+                      fontSize: 22,
+                      color: Colors.green.shade800,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Text("More reports coming soon...",
+                  style: TextStyle(fontSize: 16, color: Colors.grey)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDashboard() {
+    return Padding(
+      padding: const EdgeInsets.all(18.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection("users").snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return _buildStatCard("Total Users", "0", Colors.green);
+                    int totalUsers = snapshot.data!.docs.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return (data['role'] ?? 'user') != 'admin';
+                    }).length;
+                    return _buildStatCard("Total Users", "$totalUsers", Colors.green);
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection("food_logs").snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return _buildStatCard("Total Food Logs", "0", Colors.orange);
+                    int totalLogs = snapshot.data!.docs.length;
+                    return _buildStatCard("Total Food Logs", "$totalLogs", Colors.orange);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text("User Accounts",
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green.shade800)),
+          const SizedBox(height: 10),
+          Expanded(child: _buildUserList()),
+        ],
       ),
     );
-  }
-}
-
-// ✅ Edit User Screen
-class EditUserScreen extends StatefulWidget {
-  final String userId;
-  final DocumentSnapshot userData;
-
-  const EditUserScreen(
-      {super.key, required this.userId, required this.userData});
-
-  @override
-  State<EditUserScreen> createState() => _EditUserScreenState();
-}
-
-class _EditUserScreenState extends State<EditUserScreen> {
-  late TextEditingController nameController;
-  late TextEditingController emailController;
-  late String role;
-
-  @override
-  void initState() {
-    super.initState();
-    nameController = TextEditingController(text: widget.userData['name']);
-    emailController = TextEditingController(text: widget.userData['email']);
-    role = widget.userData['role'] ?? "user";
-  }
-
-  Future<void> _saveChanges() async {
-    await FirebaseFirestore.instance
-        .collection("users")
-        .doc(widget.userId)
-        .update({
-      "name": nameController.text,
-      "email": emailController.text,
-      "role": role,
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("User updated successfully")),
-    );
-    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
+    final Color primaryGreen = Colors.green.shade700;
+
+    final List<Widget> pages = [
+      _buildDashboard(),
+      _buildUserList(),
+      _buildFoodDataTab(),
+      _buildReportsTab(),
+    ];
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Edit User")),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: "Name"),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(labelText: "Email"),
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              value: role,
-              items: const [
-                DropdownMenuItem(value: "user", child: Text("User")),
-                DropdownMenuItem(value: "admin", child: Text("Admin")),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  role = value!;
-                });
-              },
-              decoration: const InputDecoration(labelText: "Role"),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _saveChanges,
-              child: const Text("Save Changes"),
-            ),
-          ],
-        ),
+      backgroundColor: Colors.green.shade50,
+      appBar: AppBar(
+        title: const Text("Admin Dashboard"),
+        backgroundColor: primaryGreen,
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _confirmLogout(context),
+          ),
+        ],
+      ),
+      body: pages[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        selectedItemColor: primaryGreen,
+        unselectedItemColor: Colors.grey,
+        backgroundColor: Colors.white,
+        type: BottomNavigationBarType.fixed,
+        onTap: (index) => setState(() => _selectedIndex = index),
+        items: const [
+          BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard), label: "Dashboard"),
+          BottomNavigationBarItem(icon: Icon(Icons.group), label: "Users"),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.restaurant_menu), label: "Food Data"),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: "Reports"),
+        ],
       ),
     );
   }

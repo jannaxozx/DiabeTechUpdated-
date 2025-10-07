@@ -1,3 +1,4 @@
+
 name: diabetechapp
 description: "A new Flutter project."
 publish_to: 'none'
@@ -10,15 +11,21 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  shared_preferences: ^2.2.2
   
+  camera: ^0.11.0
+
+  # Utils
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.2
+  permission_handler: ^11.0.1
+  intl: ^0.19.0  
+
   # Firebase
   firebase_core: ^3.10.0
   firebase_auth: ^5.5.2
   cloud_firestore: ^5.0.0
   firebase_storage: ^12.0.4
-  google_sign_in: ^6.2.1
+  flutter_facebook_auth: ^7.1.0
 
   # UI
   cupertino_icons: ^1.0.8
@@ -31,10 +38,6 @@ dependencies:
   # Image Picker
   image_picker: ^1.0.0
 
-  # Utils
-  path_provider: ^2.1.2
-  permission_handler: ^11.0.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -46,4 +49,3 @@ flutter:
   assets:
     - assets/images/
     - assets/images/scan.png
-

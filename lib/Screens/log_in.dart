@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 import 'register.dart';
 import 'ForgotPasswordScreen.dart';
@@ -19,44 +19,32 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscureText = true;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   bool _isLoading = false;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // ---------------- Login with Email + Role Check ----------------
+  // ---------------- Email Login ----------------
   Future<void> _loginUser() async {
     setState(() => _isLoading = true);
     try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      final userCredential = await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      User? user = userCredential.user;
+      final user = userCredential.user;
       if (user == null) throw Exception("User not found");
 
-      // 🔑 Fetch role from Firestore
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+      final userDoc = await FirebaseFirestore.instance
           .collection("users")
           .doc(user.uid)
           .get();
 
-      String role;
-      if (userDoc.exists && userDoc.data() != null) {
-        role = (userDoc.data() as Map<String, dynamic>)['role'] ?? "user";
-      } else {
-        // Default: normal user if no record exists
-        role = "user";
-        await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
-          "email": user.email,
-          "role": "user",
-        });
-      }
+      String role = (userDoc.data()?['role'] ?? 'user').toString();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Login Successful as $role")),
       );
 
-      // 🔑 Redirect based on role
       if (role == "admin") {
         Navigator.pushReplacement(
           context,
@@ -68,93 +56,97 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(builder: (_) => const Dashboard()),
         );
       }
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Login failed")),
-      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
+        SnackBar(content: Text("Login failed: $e")),
       );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  // ---------------- Google Sign-In with Role Check ----------------
-  Future<void> _signInWithGoogle() async {
+  // ---------------- Facebook Sign-In ----------------
+  Future<void> _signInWithFacebook() async {
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) return;
+      setState(() => _isLoading = true);
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+      // Step 1: Facebook login
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
       );
 
-      UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
+      if (result.status == LoginStatus.success) {
+        final AccessToken accessToken = result.accessToken!;
 
-      User? user = userCredential.user;
-      if (user == null) throw Exception("Google Sign-In failed");
+        // Step 2: Firebase credential
+        final facebookAuthCredential =
+            FacebookAuthProvider.credential(accessToken.tokenString);
 
-      DocumentReference userDoc =
-          FirebaseFirestore.instance.collection('users').doc(user.uid);
+        // Step 3: Firebase Sign-In
+        final userCredential =
+            await FirebaseAuth.instance.signInWithCredential(facebookAuthCredential);
+        final user = userCredential.user;
 
-      if (!(await userDoc.get()).exists) {
-        await userDoc.set({
-          'email': user.email,
-          'role': 'user', // default role
-        });
-      }
+        if (user != null) {
+          final userRef =
+              FirebaseFirestore.instance.collection("users").doc(user.uid);
+          final userDoc = await userRef.get();
 
-      DocumentSnapshot snapshot = await userDoc.get();
-      String role = (snapshot.data() as Map<String, dynamic>)['role'] ?? "user";
+          if (!userDoc.exists) {
+            await userRef.set({
+              "email": user.email,
+              "name": user.displayName ?? "",
+              "photoUrl": user.photoURL ?? "",
+              "role": "user",
+              "createdAt": Timestamp.now(),
+            });
+          }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Signed in as $role")),
-      );
+          final role =
+              (userDoc.data()?['role'] ?? 'user').toString().toLowerCase();
 
-      if (role == "admin") {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Facebook login successful as $role")),
+          );
+
+          if (role == "admin") {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const AdminDashboard()),
+            );
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const Dashboard()),
+            );
+          }
+        }
+      } else if (result.status == LoginStatus.cancelled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Facebook login cancelled")),
         );
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const Dashboard()),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Facebook login failed: ${result.message}")),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Google Sign-In Failed: $e")),
+        SnackBar(content: Text("Error during Facebook login: $e")),
       );
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
-  // ---------------- Placeholder for Phone Sign-In ----------------
-  Future<void> _signInWithPhone() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Phone Sign-In not implemented")),
-    );
-  }
-
-  // ---------------- Social Button Widget ----------------
+  // ---------------- Social Button ----------------
   Widget socialButton(String imagePath, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      child: Container(
-        height: 50,
-        width: 50,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.black),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Image.asset(imagePath),
+      child: SizedBox(
+        height: 60,
+        width: 60,
+        child: Image.asset(imagePath, fit: BoxFit.contain),
       ),
     );
   }
@@ -166,13 +158,10 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           // Background
           SizedBox.expand(
-            child: Image.asset(
-              "assets/images/ground.png",
-              fit: BoxFit.cover,
-            ),
+            child: Image.asset("assets/images/ground.png", fit: BoxFit.cover),
           ),
 
-          // Form
+          // Login form
           SingleChildScrollView(
             child: Column(
               children: [
@@ -185,11 +174,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text("Welcome Back",
-                    style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black)),
+                const Text(
+                  "Welcome Back",
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black),
+                ),
                 const SizedBox(height: 20),
 
                 // Email
@@ -235,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                // Forgot password
+                // Forgot Password
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -246,15 +237,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (context) =>
-                                    const PasswordResetScreen()),
+                              builder: (_) => const PasswordResetScreen(),
+                            ),
                           );
                         },
-                        child: const Text("Forgot Password?",
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black)),
+                        child: const Text(
+                          "Forgot Password?",
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black),
+                        ),
                       ),
                     ),
                   ],
@@ -275,9 +268,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Center(
                         child: _isLoading
                             ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text("LOGIN",
+                            : const Text(
+                                "LOGIN",
                                 style: TextStyle(
-                                    fontSize: 16, color: Colors.white)),
+                                    fontSize: 16, color: Colors.white),
+                              ),
                       ),
                     ),
                   ),
@@ -285,42 +280,35 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 20),
 
-                // OR continue with
+                // Divider
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 30),
                   child: Row(
                     children: const [
-                      Expanded(
-                          child: Divider(color: Colors.black, thickness: 2)),
+                      Expanded(child: Divider(color: Colors.black, thickness: 2)),
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 10),
-                        child: Text("or continue with",
-                            style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600)),
+                        child: Text(
+                          "or continue with",
+                          style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600),
+                        ),
                       ),
-                      Expanded(
-                          child: Divider(color: Colors.black, thickness: 2)),
+                      Expanded(child: Divider(color: Colors.black, thickness: 2)),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 15),
 
-                // Social buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    socialButton("assets/images/GoogleLogo.png", _signInWithGoogle),
-                    const SizedBox(width: 20),
-                    socialButton("assets/images/PhoneLogo.png", _signInWithPhone),
-                  ],
-                ),
+                // Facebook Button
+                socialButton("assets/images/Facebook1.png", _signInWithFacebook),
 
                 const SizedBox(height: 20),
 
-                // Not a member? Register Now
+                // Register link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -331,19 +319,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       onTap: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(
-                              builder: (context) => const Register()),
+                          MaterialPageRoute(builder: (_) => const Register()),
                         );
                       },
-                      child: const Text("Register Now",
-                          style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black)),
+                      child: const Text(
+                        "Register Now",
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black),
+                      ),
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 30),
               ],
             ),
