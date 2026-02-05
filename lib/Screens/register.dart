@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:diabetechapp/Screens/dashboard.dart';
+// import 'package:diabetechapp/Screens/dashboard.dart'; // unused import removed
 import 'package:diabetechapp/Screens/log_in.dart';
 
 class Register extends StatefulWidget {
@@ -13,43 +13,172 @@ class Register extends StatefulWidget {
 
 class _RegisterState extends State<Register> {
   bool _obscureText = true;
+  bool _isLoading = false;
+  
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  void _registerUser() async {
+  String? _selectedDiabetesType;
+
+  final List<String> _diabetesTypes = [
+    "Mild",
+    "Moderate",
+    "Severe",
+  ];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  String? _validateInputs() {
+    if (_nameController.text.trim().isEmpty) {
+      return "Please enter your full name";
+    }
+    if (_emailController.text.trim().isEmpty) {
+      return "Please enter your email";
+    }
+    if (!_emailController.text.trim().contains('@')) {
+      return "Please enter a valid email";
+    }
+    if (_passwordController.text.trim().length < 6) {
+      return "Password must be at least 6 characters";
+    }
+    if (_selectedDiabetesType == null) {
+      return "Please select your diabetes type";
+    }
+    return null;
+  }
+
+  Future<void> _registerUser() async {
+    // Validate inputs first
+    final validationError = _validateInputs();
+    if (validationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(validationError)),
+      );
+      return;
+    }
+
+    // Prevent multiple submissions
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+
     try {
-      UserCredential userCredential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      debugPrint("📝 Starting registration...");
+      
+      // 1. Create user account
+      UserCredential userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
       User? user = userCredential.user;
 
-      if (user != null) {
-        // Update display name
-        await user.updateDisplayName(_nameController.text.trim());
-        await user.reload(); // refresh user info
-
-        // Save user data to Firestore
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'name': _nameController.text.trim(),
-          'email': user.email,
-          'role': 'user',
-          'createdAt': DateTime.now(),
-        });
+      if (user == null) {
+        throw Exception("User creation failed");
       }
 
-      // Navigate to Dashboard
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const Dashboard()),
-      );
-    } on FirebaseAuthException catch (e) {
+      debugPrint("✅ User created: ${user.uid}");
+
+      // 2. Update display name
+      await user.updateDisplayName(_nameController.text.trim());
+      await user.reload();
+      
+      debugPrint("✅ Display name updated");
+
+      // 3. Save user data to Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({
+        'name': _nameController.text.trim(),
+        'email': user.email,
+        'role': 'user',
+        'diabetesType': _selectedDiabetesType,
+        'createdAt': FieldValue.serverTimestamp(),
+        'uid': user.uid,
+      });
+
+      debugPrint("✅ User data saved to Firestore");
+
+      // 4. Sign out the user so they need to log in
+      await FirebaseAuth.instance.signOut();
+      debugPrint("✅ User signed out after registration");
+
+      if (!mounted) return;
+
+      // 5. Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Registration failed")),
+        const SnackBar(
+          content: Text("✅ Registration successful! Please log in."),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
       );
+
+      // 6. Small delay to show success message
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) return;
+
+      // 7. Navigate back to Login page and clear all previous routes
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false, // This removes all previous routes
+      );
+
+      debugPrint("✅ Navigated to Login Screen");
+      
+    } on FirebaseAuthException catch (e) {
+      debugPrint("❌ Firebase Auth Error: ${e.code} - ${e.message}");
+      
+      String errorMessage;
+      switch (e.code) {
+        case 'weak-password':
+          errorMessage = 'The password is too weak';
+          break;
+        case 'email-already-in-use':
+          errorMessage = 'An account already exists with this email';
+          break;
+        case 'invalid-email':
+          errorMessage = 'Invalid email address';
+          break;
+        case 'operation-not-allowed':
+          errorMessage = 'Email/password accounts are not enabled';
+          break;
+        default:
+          errorMessage = e.message ?? 'Registration failed';
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      debugPrint("❌ Unexpected error: $e");
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Registration failed: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -110,16 +239,18 @@ class _RegisterState extends State<Register> {
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                     child: TextField(
                       controller: _nameController,
+                      enabled: !_isLoading,
                       keyboardType: TextInputType.name,
                       style: const TextStyle(color: Colors.black),
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.9),
+                        fillColor: Color.fromRGBO(255, 255, 255, 0.9),
                         labelText: 'Full Name',
                         labelStyle: const TextStyle(color: Colors.black),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
+                        prefixIcon: const Icon(Icons.person, color: Colors.grey),
                       ),
                     ),
                   ),
@@ -129,16 +260,18 @@ class _RegisterState extends State<Register> {
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                     child: TextField(
                       controller: _emailController,
+                      enabled: !_isLoading,
                       keyboardType: TextInputType.emailAddress,
                       style: const TextStyle(color: Colors.black),
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.9),
+                        fillColor: Color.fromRGBO(255, 255, 255, 0.9),
                         labelText: 'Email',
                         labelStyle: const TextStyle(color: Colors.black),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
+                        prefixIcon: const Icon(Icons.email, color: Colors.grey),
                       ),
                     ),
                   ),
@@ -148,16 +281,18 @@ class _RegisterState extends State<Register> {
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                     child: TextFormField(
                       controller: _passwordController,
+                      enabled: !_isLoading,
                       obscureText: _obscureText,
                       style: const TextStyle(color: Colors.black),
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.9),
+                        fillColor: Color.fromRGBO(255, 255, 255, 0.9),
                         labelText: 'Password',
                         labelStyle: const TextStyle(color: Colors.black),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
+                        prefixIcon: const Icon(Icons.lock, color: Colors.grey),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscureText ? Icons.visibility_off : Icons.visibility,
@@ -172,29 +307,72 @@ class _RegisterState extends State<Register> {
                       ),
                     ),
                   ),
+
+                  // Diabetes type dropdown
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedDiabetesType,
+                      onChanged: _isLoading ? null : (value) {
+                        setState(() {
+                          _selectedDiabetesType = value;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Color.fromRGBO(255, 255, 255, 0.9),
+                        labelText: 'Select Diabetes Type',
+                        labelStyle: const TextStyle(color: Colors.black),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        prefixIcon: const Icon(Icons.medical_services, color: Colors.grey),
+                      ),
+                      dropdownColor: Colors.white,
+                      items: _diabetesTypes.map((type) {
+                        return DropdownMenuItem(
+                          value: type,
+                          child: Text(
+                            type,
+                            style: const TextStyle(color: Colors.black),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+
                   const SizedBox(height: 25),
 
-                  // Register button
+                  // Register button with loading indicator
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 15),
                     child: InkWell(
-                      onTap: _registerUser,
+                      onTap: _isLoading ? null : _registerUser,
                       child: Container(
                         height: 55,
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF42A546),
+                          color: _isLoading ? Colors.grey : const Color(0xFF42A546),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Center(
-                          child: Text(
-                            "REGISTER",
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                        child: Center(
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 3,
+                                  ),
+                                )
+                              : const Text(
+                                  "REGISTER",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                         ),
                       ),
                     ),
@@ -213,18 +391,21 @@ class _RegisterState extends State<Register> {
                         ),
                       ),
                       InkWell(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => const LoginScreen()),
-                          );
-                        },
-                        child: const Text(
+                        onTap: _isLoading
+                            ? null
+                            : () {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => const LoginScreen()),
+                                );
+                              },
+                        child: Text(
                           "Login",
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                            color: _isLoading ? Colors.grey : Colors.black,
                           ),
                         ),
                       ),

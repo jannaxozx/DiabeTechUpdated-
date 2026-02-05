@@ -75,7 +75,7 @@ class _LandingPageState extends State<LandingPage> {
           ),
 
           // Dark overlay
-          Container(color: Colors.black.withOpacity(0.3)),
+          Container(color: Color.fromRGBO(0, 0, 0, 0.3)),
 
           // Content
           Center(
