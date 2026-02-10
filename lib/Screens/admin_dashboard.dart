@@ -428,7 +428,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       _updateStatus('Saving to database...');
       debugPrint('Adding food to Firestore...');
 
-      await FirebaseFirestore.instance.collection('diabetic_foods').add({
+      await FirebaseFirestore.instance.collection('food_rules').add({
         'name': name,
         'category': category,
         'portionSize': portionController.text.trim(),
@@ -522,7 +522,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     if (ok != true) return;
 
     try {
-      await FirebaseFirestore.instance.collection('diabetic_foods').doc(docId).delete();
+      await FirebaseFirestore.instance.collection('food_rules').doc(docId).delete();
 
       if (imageUrl.isNotEmpty) {
         try {
@@ -783,7 +783,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 stream: FirebaseFirestore.instance.collectionGroup('foodLogs').snapshots(),
                 builder: (context, logSnap) {
                   return StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('diabetic_foods').snapshots(),
+                    stream: FirebaseFirestore.instance.collection('food_rules').snapshots(),
                     builder: (context, foodSnap) {
                       final userCount = userSnap.hasData ? userSnap.data!.docs.length : 0;
                       final logCount = logSnap.hasData ? logSnap.data!.docs.length : 0;
@@ -868,7 +868,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           const SizedBox(height: 12),
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('diabetic_foods').snapshots(),
+            stream: FirebaseFirestore.instance.collection('food_rules').snapshots(),
             builder: (context, snap) {
               if (!snap.hasData) {
                 return const Center(child: CircularProgressIndicator());
@@ -1375,7 +1375,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildFoodDataPage() {
     final foodsStream = FirebaseFirestore.instance
-        .collection('diabetic_foods')
+        .collection('food_rules')
         .orderBy('createdAt', descending: true)
         .snapshots();
 
