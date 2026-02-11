@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'admin_food_detail_screen.dart';
 
 class AdminFoodRulesScreen extends StatefulWidget {
   const AdminFoodRulesScreen({Key? key}) : super(key: key);
@@ -72,7 +73,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
         .doc(foodName.toLowerCase())
         .set({
       'name': foodName,
-      'category': _category,
+      'category': _category.trim().split(' ')[0], // Save only "Do" or "Don't"
       'calories': int.tryParse(_caloriesController.text) ?? 0,
       'carbs': double.tryParse(_carbsController.text) ?? 0,
       'protein': double.tryParse(_proteinController.text) ?? 0,
@@ -205,7 +206,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       value: _category,
                       items: const [
                         DropdownMenuItem(value: 'Do', child: Text('Do')),
-                        DropdownMenuItem(value: 'Don't', child: Text('Don't')),
+                        DropdownMenuItem(value: 'Don\'t', child: Text('Don\'t')),
                       ],
                       onChanged: (value) =>
                           setState(() => _category = value!),
@@ -236,7 +237,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
 
             const SizedBox(height: 20),
 
-            /// 📋 FOOD LIST
+            /// FOOD LIST
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -254,8 +255,21 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       final data = doc.data() as Map<String, dynamic>;
                       final foodName = data['name'] ?? doc.id;
                       final category = data['category'] ?? 'Do';
-                      // Clean category to show only "Do" or "Don't"
-                      final cleanCategory = category.toString().split(' ')[0];
+                      
+                      // More robust category cleaning - extract just "Do" or "Don't"
+                      String cleanCategory = 'Do';
+                      final categoryStr = category.toString().trim();
+                      
+                      // Remove any extra characters after "Do" or "Don't"
+                      if (categoryStr.toLowerCase().startsWith('don')) {
+                        cleanCategory = 'Don\'t';
+                      } else if (categoryStr.toLowerCase().startsWith('do')) {
+                        cleanCategory = 'Do';
+                      }
+                      
+                      debugPrint('Raw category: "$categoryStr"');
+                      debugPrint('Clean category: "$cleanCategory"');
+                      
                       final calories = data['calories'] ?? 0;
                       final carbs = data['carbs'] ?? 0;
                       final protein = data['protein'] ?? 0;
@@ -270,44 +284,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       return Card(
                         child: ListTile(
                           title: Text(foodName.toString().toUpperCase()),
-                          subtitle: hasNutritionalData 
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.local_fire_department, size: 16, color: Colors.orange),
-                                      const SizedBox(width: 4),
-                                      Text('$calories kcal'),
-                                      const SizedBox(width: 12),
-                                      Icon(Icons.grain, size: 16, color: Colors.brown),
-                                      const SizedBox(width: 4),
-                                      Text('${carbs}g carbs'),
-                                      const SizedBox(width: 12),
-                                      Icon(Icons.fitness_center, size: 16, color: Colors.red),
-                                      const SizedBox(width: 4),
-                                      Text('${protein}g protein'),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.water_drop, size: 16, color: Colors.yellow[700]),
-                                      const SizedBox(width: 4),
-                                      Text('${fat}g fat'),
-                                      const SizedBox(width: 12),
-                                      Icon(Icons.straighten, size: 16, color: Colors.blue),
-                                      const SizedBox(width: 4),
-                                      Text('${data['portionSize'] ?? '1 serving'}'),
-                                    ],
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                'Category: ${cleanCategory}',
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
+                          subtitle: Text(cleanCategory),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

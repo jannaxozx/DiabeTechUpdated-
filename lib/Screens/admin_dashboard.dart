@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:diabetechapp/Screens/user_food_log_screen.dart';
 import 'landing_page.dart';
 import 'edit_user_screen.dart';
+import 'admin_reports.dart';
 import '../supabase_config.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -1583,7 +1584,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             )
                           : const Icon(Icons.fastfood, color: Colors.green, size: 40),
                       title: Text(data['name'] ?? 'Unnamed', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('${data['category'] ?? '?'} • ${data['portionSize'] ?? 'N/A'}'),
+                      subtitle: Text('${data['category'] ?? '?'}'),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () => _deleteFood(doc.id, imageUrl),
@@ -1617,13 +1618,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  Widget _buildReportsPage() {
+    return const Center(
+      child: Text('Reports Page - Coming Soon', style: TextStyle(fontSize: 18)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pages = [
+    final List<Widget> pages = [
       _buildDashboardPage(),
       _buildUsersPage(),
       _buildFoodDataPage(),
-      const Center(child: Text('Reports coming soon')),
+      AdminReportsScreen(),
     ];
 
     return WillPopScope(
