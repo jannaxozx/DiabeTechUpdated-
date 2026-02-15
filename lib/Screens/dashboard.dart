@@ -27,6 +27,12 @@ class _DashboardState extends State<Dashboard> {
   String diabetesType = "Loading...";
   String? profilePictureUrl; // ✅ Added profile picture URL
   List<Map<String, dynamic>> recentScans = [];
+  
+  // User goals - accessible throughout the class
+  double dailyCalorieGoal = 2000;
+  double dailySugarGoal = 50;
+  double dailyCarbGoal = 300;
+  double weeklyScanGoal = 10;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -81,48 +87,87 @@ class _DashboardState extends State<Dashboard> {
         debugPrint("📋 All user data fields: ${data?.keys.toList()}");
       }
     } catch (e) {
-      debugPrint("⚠️ Error fetching profile picture: $e");
+      debugPrint(" Error fetching profile picture: $e");
     }
   }
 
   Future<void> _fetchDashboardData() async {
     if (user == null) return;
     try {
-      final scansSnapshot = await _firestore
+      // Fetch user's food logs
+      final foodLogsSnapshot = await _firestore
           .collection('users')
           .doc(user!.uid)
-          .collection('scanned_foods')
+          .collection('foodLogs')
           .orderBy('timestamp', descending: true)
-          .limit(5)
+          .limit(50) // Get recent logs
           .get();
 
-      double totalCalories = 0;
-      double totalSugar = 0;
-      double totalCarbs = 0;
-      List<Map<String, dynamic>> scans = [];
+      // Fetch user's profile for goals
+      final userDoc = await _firestore.collection('users').doc(user!.uid).get();
+      final userData = userDoc.data() as Map<String, dynamic>? ?? {};
+      
+      // Get user's daily goals
+      final dailyCalorieGoal = (userData['dailyCalorieGoal'] ?? 2000).toDouble();
+      final dailyCarbGoal = (userData['dailyCarbGoal'] ?? 300).toDouble();
+      final dailySugarGoal = (userData['dailySugarGoal'] ?? 50).toDouble();
+      final weeklyScanGoal = (userData['weeklyScanGoal'] ?? 10).toDouble();
 
-      for (var doc in scansSnapshot.docs) {
-        final data = doc.data();
-        final nutrition = data['nutrition'] ?? {};
-        totalCalories += (nutrition['calories'] ?? 0).toDouble();
-        totalSugar += (nutrition['sugar'] ?? 0).toDouble();
-        totalCarbs += (nutrition['carbs'] ?? 0).toDouble();
-
-        scans.add({
-          'name': data['name'] ?? 'Unknown',
-          'image': data['imagePath'] ?? "assets/images/default.png",
-        });
+      // Calculate today's totals
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      
+      double todayCalories = 0;
+      double todayCarbs = 0;
+      double todaySugar = 0;
+      int thisWeekScans = 0;
+      
+      for (var doc in foodLogsSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
+        
+        if (timestamp != null) {
+          final logDate = DateTime(timestamp.year, timestamp.month, timestamp.day);
+          
+          // Today's nutrition
+          if (logDate.year == today.year && logDate.month == today.month && logDate.day == today.day) {
+            final nutrition = data['nutrition'] ?? {};
+            todayCalories += (nutrition['calories'] ?? 0).toDouble();
+            todayCarbs += (nutrition['carbs'] ?? 0).toDouble();
+            todaySugar += (nutrition['sugar'] ?? 0).toDouble();
+          }
+          
+          // This week's scans (count logs with images/scans)
+          if (data['imagePath'] != null || data['scannedFood'] == true) {
+            final weekStart = now.subtract(Duration(days: now.weekday - 1));
+            if (timestamp.isAfter(weekStart)) {
+              thisWeekScans++;
+            }
+          }
+        }
       }
 
       setState(() {
-        caloriesProgress = (totalCalories / 2000).clamp(0.0, 1.0);
-        sugarProgress = (totalSugar / 50).clamp(0.0, 1.0);
-        carbsProgress = (totalCarbs / 300).clamp(0.0, 1.0);
-        recentScans = scans;
-        weeklyGoalProgress = (scans.length / 10).clamp(0.0, 1.0);
+        // Calculate progress based on actual goals
+        caloriesProgress = dailyCalorieGoal > 0 ? (todayCalories / dailyCalorieGoal).clamp(0.0, 1.0) : 0.0;
+        sugarProgress = dailySugarGoal > 0 ? (todaySugar / dailySugarGoal).clamp(0.0, 1.0) : 0.0;
+        carbsProgress = dailyCarbGoal > 0 ? (todayCarbs / dailyCarbGoal).clamp(0.0, 1.0) : 0.0;
+        weeklyGoalProgress = weeklyScanGoal > 0 ? (thisWeekScans / weeklyScanGoal).clamp(0.0, 1.0) : 0.0;
+        
+        // Update recent scans for display
+        recentScans = foodLogsSnapshot.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['imagePath'] != null || data['scannedFood'] == true;
+        }).map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return {
+            'name': data['foodName'] ?? data['name'] ?? 'Unknown',
+            'image': data['imagePath'] ?? "assets/images/default.png",
+          };
+        }).take(5).toList();
       });
     } catch (e) {
-      debugPrint("⚠️ Error fetching dashboard data: $e");
+      debugPrint(" Error fetching dashboard data: $e");
     }
   }
 
@@ -290,9 +335,12 @@ class _DashboardState extends State<Dashboard> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildCircleStat("Calories", caloriesProgress, Colors.orange),
-                  _buildCircleStat("Sugar", sugarProgress, Colors.redAccent),
-                  _buildCircleStat("Carbs", carbsProgress, Colors.blueAccent),
+                  _buildCircleStat("Calories", caloriesProgress, Colors.orange, 
+                    "${(caloriesProgress * 100).toInt()}% of ${(dailyCalorieGoal ?? 2000).toInt()} kcal"),
+                  _buildCircleStat("Sugar", sugarProgress, Colors.redAccent,
+                    "${(sugarProgress * 100).toInt()}% of ${(dailySugarGoal ?? 50).toInt()}g"),
+                  _buildCircleStat("Carbs", carbsProgress, Colors.blueAccent,
+                    "${(carbsProgress * 100).toInt()}% of ${(dailyCarbGoal ?? 300).toInt()}g"),
                 ],
               ),
 
@@ -400,7 +448,7 @@ class _DashboardState extends State<Dashboard> {
             fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C6E49)),
       );
 
-  Widget _buildCircleStat(String label, double value, Color color) {
+  Widget _buildCircleStat(String label, double value, Color color, String detailText) {
     return Column(
       children: [
         Stack(
@@ -423,6 +471,16 @@ class _DashboardState extends State<Dashboard> {
         const SizedBox(height: 6),
         Text(label,
             style: TextStyle(color: color, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Text(
+          detailText,
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 11,
+            fontWeight: FontWeight.w400,
+          ),
+          textAlign: TextAlign.center,
+        ),
       ],
     );
   }
@@ -491,7 +549,7 @@ class _DashboardState extends State<Dashboard> {
       height: 150,
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-            .collection('diabetic_foods')
+            .collection('food_rules')
             .orderBy('createdAt', descending: false)
             .snapshots(),
         builder: (context, snapshot) {

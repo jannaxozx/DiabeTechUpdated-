@@ -50,8 +50,9 @@ class AdminFoodDetailScreen extends StatelessWidget {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          final category = data['category'] ?? 'do';
-          final isRecommended = category == 'do';
+          final category = (data['category'] ?? '').toString().toLowerCase().trim();
+          final isRecommended = category.startsWith('do');
+          final imageUrl = (data['imageUrl'] ?? data['imagePath'] ?? '') as String;
 
           return SingleChildScrollView(
             child: Column(
@@ -65,19 +66,34 @@ class AdminFoodDetailScreen extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      // Food icon
+                      // Food image or icon
                       Container(
-                        width: 80,
-                        height: 80,
+                        width: 120,
+                        height: 120,
                         decoration: BoxDecoration(
                           color: isRecommended ? Colors.green : Colors.red,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.restaurant,
-                          size: 40,
-                          color: Colors.white,
-                        ),
+                        child: imageUrl.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(60),
+                                child: Image.network(
+                                  imageUrl,
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.restaurant,
+                                    size: 60,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.restaurant,
+                                size: 60,
+                                color: Colors.white,
+                              ),
                       ),
                       const SizedBox(height: 15),
 

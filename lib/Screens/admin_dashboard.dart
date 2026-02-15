@@ -3,12 +3,14 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'admin_food_rules_screen.dart';
+import 'admin_food_detail_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:diabetechapp/Screens/user_food_log_screen.dart';
+import 'package:diabetechapp/health/do_dont_foods_screen.dart';
 import 'landing_page.dart';
 import 'edit_user_screen.dart';
 import 'admin_reports.dart';
@@ -24,6 +26,7 @@ class AdminDashboard extends StatefulWidget {
 class _AdminDashboardState extends State<AdminDashboard> {
   int _selectedIndex = 0;
   String searchQuery = "";
+  String _selectedUserDiabetesType = 'All';
 
   final TextEditingController nameController = TextEditingController();
   final TextEditingController portionController = TextEditingController();
@@ -780,6 +783,29 @@ class _AdminDashboardState extends State<AdminDashboard> {
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'user').snapshots(),
             builder: (context, userSnap) {
+              if (!userSnap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              
+              final users = userSnap.data!.docs;
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              
+              // Calculate actual active users today
+              int activeToday = 0;
+              for (var user in users) {
+                final data = user.data() as Map<String, dynamic>;
+                final lastLogin = data['lastLogin'];
+                if (lastLogin != null) {
+                  final loginDate = (lastLogin as Timestamp).toDate();
+                  if (loginDate.year == today.year && 
+                      loginDate.month == today.month && 
+                      loginDate.day == today.day) {
+                    activeToday++;
+                  }
+                }
+              }
+              
               return StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance.collectionGroup('foodLogs').snapshots(),
                 builder: (context, logSnap) {
@@ -797,7 +823,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           _statCard('Total Users', '$userCount', Icons.people, Colors.blue),
                           _statCard('Food Logs', '$logCount', Icons.restaurant, Colors.orange),
                           _statCard('Food Items', '$foodCount', Icons.fastfood, Colors.green),
-                          _statCard('Active Today', '${(userCount * 0.6).toInt()}', Icons.trending_up, Colors.purple),
+                          _statCard('Active Today', '$activeToday', Icons.trending_up, Colors.purple),
                         ],
                       );
                     },
@@ -919,70 +945,114 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
           const SizedBox(height: 30),
 
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const DoDontFoodsScreen(
+                    title: "Recent User Activity",
+                    foodCards: [],
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '🕒 Recent User Activity',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        color: Color(0xFF2C6E49),
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .where('role', isEqualTo: 'user')
+                        .orderBy('createdAt', descending: true)
+                        .limit(5)
+                        .snapshots(),
+                    builder: (context, snap) {
+                      if (!snap.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final users = snap.data!.docs;
+                      return Column(
+                        children: users.map((userDoc) {
+                          final userData = userDoc.data() as Map<String, dynamic>;
+                          final name = userData['displayName'] ?? userData['email'] ?? 'Unknown';
+                          final timestamp = (userData['createdAt'] as Timestamp?)?.toDate();
+                          final timeAgo = timestamp != null 
+                              ? _formatTimeAgo(timestamp)
+                              : 'Unknown time';
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.blue.shade100,
+                                  child: Icon(Icons.person, size: 16, color: Colors.blue.shade600),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: const TextStyle(fontWeight: FontWeight.w500),
+                                      ),
+                                      Text(
+                                        timeAgo,
+                                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
           const Text(
             '🕒 Recent User Activity',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .where('role', isEqualTo: 'user')
-                .orderBy('createdAt', descending: true)
-                .limit(5)
-                .snapshots(),
-            builder: (context, snap) {
-              if (!snap.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final recentUsers = snap.data!.docs;
-              if (recentUsers.isEmpty) {
-                return const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('No recent activity'),
-                  ),
-                );
-              }
-
-              return Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: recentUsers.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final data = recentUsers[i].data() as Map<String, dynamic>;
-                    final name = data['name'] ?? 'Unknown';
-                    final email = data['email'] ?? '';
-                    final timestamp = data['createdAt'] as Timestamp?;
-                    final timeAgo = timestamp != null
-                        ? _getTimeAgo(timestamp.toDate())
-                        : 'Recently';
-
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.green.shade100,
-                        child: Text(
-                          name.isNotEmpty ? name[0].toUpperCase() : '?',
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                        ),
-                      ),
-                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(email),
-                      trailing: Text(
-                        timeAgo,
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
 
           const SizedBox(height: 30),
 
@@ -1192,20 +1262,75 @@ class _AdminDashboardState extends State<AdminDashboard> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
-          child: TextField(
-            onChanged: (value) => setState(() => searchQuery = value.toLowerCase()),
-            decoration: InputDecoration(
-              hintText: 'Search users by name or email...',
-              prefixIcon: const Icon(Icons.search, color: Colors.green),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                onChanged: (value) => setState(() => searchQuery = value.toLowerCase()),
+                decoration: InputDecoration(
+                  hintText: 'Search users by name or email...',
+                  prefixIcon: const Icon(Icons.search, color: Colors.green),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
               ),
-            ),
+              
+              // Diabetes Type Filter Chips
+              const SizedBox(height: 16),
+              const Text(
+                'Filter by Diabetes Type:',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                alignment: WrapAlignment.start,
+                spacing: 8,
+                children: [
+                  FilterChip(
+                    label: const Text('All'),
+                    selected: _selectedUserDiabetesType == 'All',
+                    onSelected: (selected) => setState(() => _selectedUserDiabetesType = 'All'),
+                    backgroundColor: _selectedUserDiabetesType == 'All' ? Colors.green : Colors.grey.shade200,
+                    selectedColor: Colors.white,
+                  ),
+                  FilterChip(
+                    label: const Text('Mild'),
+                    selected: _selectedUserDiabetesType == 'Mild',
+                    onSelected: (selected) => setState(() => _selectedUserDiabetesType = 'Mild'),
+                    backgroundColor: _selectedUserDiabetesType == 'Mild' ? Colors.green : Colors.grey.shade200,
+                    selectedColor: Colors.white,
+                  ),
+                  FilterChip(
+                    label: const Text('Moderate'),
+                    selected: _selectedUserDiabetesType == 'Moderate',
+                    onSelected: (selected) => setState(() => _selectedUserDiabetesType = 'Moderate'),
+                    backgroundColor: _selectedUserDiabetesType == 'Moderate' ? Colors.orange : Colors.grey.shade200,
+                    selectedColor: Colors.white,
+                  ),
+                  FilterChip(
+                    label: const Text('Severe'),
+                    selected: _selectedUserDiabetesType == 'Severe',
+                    onSelected: (selected) => setState(() => _selectedUserDiabetesType = 'Severe'),
+                    backgroundColor: _selectedUserDiabetesType == 'Severe' ? Colors.red : Colors.grey.shade200,
+                    selectedColor: Colors.white,
+                  ),
+                  FilterChip(
+                    label: const Text('Not Specified'),
+                    selected: _selectedUserDiabetesType == 'Not Specified',
+                    onSelected: (selected) => setState(() => _selectedUserDiabetesType = 'Not Specified'),
+                    backgroundColor: _selectedUserDiabetesType == 'Not Specified' ? Colors.grey : Colors.grey.shade200,
+                    selectedColor: Colors.white,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
+        const SizedBox(height: 16),
 
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
@@ -1227,6 +1352,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
               }
 
               var docs = snap.data!.docs;
+
+              // Apply diabetes type filter
+              if (_selectedUserDiabetesType != 'All') {
+                docs = docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final diabetesType = data['diabetesType'] ?? 'Not specified';
+                  return diabetesType == _selectedUserDiabetesType;
+                }).toList();
+              }
 
               if (searchQuery.isNotEmpty) {
                 docs = docs.where((doc) {
@@ -1547,8 +1681,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           const SizedBox(height: 26),
           const Divider(),
           const SizedBox(height: 6),
-          const Text('Manage Foods', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
 
           StreamBuilder<QuerySnapshot>(
             stream: foodsStream,
@@ -1571,6 +1703,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     elevation: 2,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AdminFoodDetailScreen(foodId: doc.id),
+                          ),
+                        );
+                      },
                       leading: imageUrl.isNotEmpty
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(8),
@@ -1663,6 +1803,121 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ],
         ),
         backgroundColor: Colors.green.shade50,
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  Widget _buildUserTypeSection(String title, List<Map<String, dynamic>> users, Color color) {
+    // Convert to MaterialColor for shade access
+    final materialColor = color == Colors.green ? Colors.green :
+                        color == Colors.orange ? Colors.orange :
+                        color == Colors.red ? Colors.red :
+                        Colors.grey;
+    
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Text(
+              '$title (${users.length})',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: materialColor.shade700,
+              ),
+            ),
+          ),
+          
+          // Users List
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: users.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final user = users[index];
+              final name = user['name'] ?? 'Unknown';
+              final email = user['email'] ?? '';
+              final age = user['age']?.toString() ?? 'N/A';
+              
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: color.withOpacity(0.2),
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: materialColor.shade700,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Age: $age',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        title.split(' ')[1], // Extract "Mild", "Moderate", etc.
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: materialColor.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
