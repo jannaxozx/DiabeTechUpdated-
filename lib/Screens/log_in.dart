@@ -82,16 +82,33 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       setState(() => _isLoading = true);
 
+      // Check if Facebook is available
+      final isAvailable = await FacebookAuth.instance.isWebSdkInitialized;
+      if (!isAvailable && !kIsWeb) {
+        // Try to initialize on mobile
+        try {
+          await FacebookAuth.instance.webAndDesktopInitialize(
+            appId: "2958808434459170", // Facebook App ID
+            cookie: true,
+            xfbml: true,
+            version: "v18.0",
+          );
+        } catch (e) {
+          debugPrint("Facebook initialization error: $e");
+        }
+      }
+
       // Use native flow on mobile to avoid insecure web login blocks
       final LoginResult result = await FacebookAuth.instance.login(
         permissions: ['email', 'public_profile'],
         loginBehavior: kIsWeb
-            ? LoginBehavior.webOnly // requires https in the browser
+            ? LoginBehavior.webOnly // requires https in browser
             : LoginBehavior.nativeWithFallback,
       );
 
       if (result.status == LoginStatus.success) {
         final AccessToken accessToken = result.accessToken!;
+
         final facebookAuthCredential =
             FacebookAuthProvider.credential(accessToken.tokenString);
         final userCredential =
@@ -103,25 +120,42 @@ class _LoginScreenState extends State<LoginScreen> {
           Map<String, dynamic>? fbData;
           try {
             fbData = await FacebookAuth.instance.getUserData(
-              fields: "email,name,picture.width(200).height(200)",
+              fields: "email,name,picture.width(200).height(200),first_name,last_name",
             );
-          } catch (_) {}
+          } catch (e) {
+            debugPrint("Error getting Facebook user data: $e");
+          }
 
           final userRef =
               FirebaseFirestore.instance.collection("users").doc(user.uid);
           var userDoc = await userRef.get();
 
           if (!userDoc.exists) {
+            // Create new user account
             await userRef.set({
-              "email": user.email,
-              "name": (fbData?['name'] as String?) ?? user.displayName ?? "",
+              "email": user.email ?? fbData?['email'] ?? "",
+              "displayName": fbData?['name'] ?? user.displayName ?? "",
+              "name": fbData?['name'] ?? user.displayName ?? "",
+              "firstName": fbData?['first_name'] ?? "",
+              "lastName": fbData?['last_name'] ?? "",
               "photoUrl": (fbData?['picture']?['data']?['url'] as String?) ?? user.photoURL ?? "",
+              "photoURL": (fbData?['picture']?['data']?['url'] as String?) ?? user.photoURL ?? "",
               "role": "user",
+              "provider": "facebook",
               "createdAt": Timestamp.now(),
+              "lastLogin": Timestamp.now(),
             });
-            // Re-read after creation to get fresh data
-            userDoc = await userRef.get();
+            
+            _showSuccessToast("Account created successfully via Facebook!");
+          } else {
+            // Update last login for existing user
+            await userRef.update({
+              "lastLogin": Timestamp.now(),
+            });
           }
+          
+          // Re-read after creation/update to get fresh data
+          userDoc = await userRef.get();
 
           final role =
               (userDoc.data()?['role'] ?? 'user').toString().toLowerCase();
@@ -144,9 +178,10 @@ class _LoginScreenState extends State<LoginScreen> {
       } else if (result.status == LoginStatus.cancelled) {
         _showInfoToast("Facebook login cancelled");
       } else {
-        _showErrorToast("Facebook login failed: ${result.message}");
+        _showErrorToast("Facebook login failed: ${result.message ?? 'Unknown error'}");
       }
     } catch (e) {
+      debugPrint("Facebook login error: $e");
       if (e is FirebaseAuthException &&
           e.code == 'account-exists-with-different-credential') {
         final pendingEmail = e.email;
@@ -155,8 +190,10 @@ class _LoginScreenState extends State<LoginScreen> {
             : <String>[];
         final hint = methods.isNotEmpty ? 'Use ${methods.first} to sign in.' : 'Try another method.';
         _showErrorToast('Account exists with different sign-in method. $hint');
+      } else if (e.toString().contains('Facebook app is not configured')) {
+        _showErrorToast('Facebook login not configured. Please use email or try again later.');
       } else {
-        _showErrorToast("Error during Facebook login: $e");
+        _showErrorToast("Error during Facebook login: ${e.toString()}");
       }
     } finally {
       setState(() => _isLoading = false);

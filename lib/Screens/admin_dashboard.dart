@@ -989,9 +989,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   const SizedBox(height: 12),
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .where('role', isEqualTo: 'user')
-                        .orderBy('createdAt', descending: true)
+                        .collectionGroup('foodLogs')
+                        .orderBy('timestamp', descending: true)
                         .limit(5)
                         .snapshots(),
                     builder: (context, snap) {
@@ -999,43 +998,60 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         return const Center(child: CircularProgressIndicator());
                       }
 
-                      final users = snap.data!.docs;
+                      final logs = snap.data!.docs;
+                      if (logs.isEmpty) {
+                        return const Text(
+                          'No recent activity found',
+                          style: TextStyle(color: Colors.grey, fontSize: 14),
+                        );
+                      }
+
                       return Column(
-                        children: users.map((userDoc) {
-                          final userData = userDoc.data() as Map<String, dynamic>;
-                          final name = userData['displayName'] ?? userData['email'] ?? 'Unknown';
-                          final timestamp = (userData['createdAt'] as Timestamp?)?.toDate();
+                        children: logs.map((logDoc) {
+                          final logData = logDoc.data() as Map<String, dynamic>;
+                          final foodName = logData['foodName'] ?? 'Unknown food';
+                          final timestamp = (logData['timestamp'] as Timestamp?)?.toDate();
                           final timeAgo = timestamp != null 
                               ? _formatTimeAgo(timestamp)
                               : 'Unknown time';
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 16,
-                                  backgroundColor: Colors.blue.shade100,
-                                  child: Icon(Icons.person, size: 16, color: Colors.blue.shade600),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        name,
-                                        style: const TextStyle(fontWeight: FontWeight.w500),
-                                      ),
-                                      Text(
-                                        timeAgo,
-                                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                          
+                          // Get user info from the parent document
+                          final userId = logDoc.reference.parent.parent?.id;
+                          String userName = 'Unknown User';
+                          
+                          if (userId != null) {
+                            // We can cache user info to avoid multiple reads
+                            return FutureBuilder<DocumentSnapshot>(
+                              future: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(userId)
+                                  .get(),
+                              builder: (context, userSnap) {
+                                if (userSnap.hasData && userSnap.data != null) {
+                                  final userData = userSnap.data!.data() as Map<String, dynamic>?;
+                                  userName = userData?['displayName'] ?? 
+                                              userData?['name'] ?? 
+                                              userData?['email'] ?? 
+                                              'Unknown User';
+                                }
+                                
+                                return _buildActivityItem(
+                                  icon: Icons.restaurant,
+                                  userName: userName,
+                                  action: 'logged food: $foodName',
+                                  timeAgo: timeAgo,
+                                  iconColor: Colors.orange,
+                                );
+                              },
+                            );
+                          }
+                          
+                          return _buildActivityItem(
+                            icon: Icons.restaurant,
+                            userName: userName,
+                            action: 'logged food: $foodName',
+                            timeAgo: timeAgo,
+                            iconColor: Colors.orange,
                           );
                         }).toList(),
                       );
@@ -1045,14 +1061,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             ),
           ),
-
-          const SizedBox(height: 30),
-
-          const Text(
-            '🕒 Recent User Activity',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
 
           const SizedBox(height: 30),
 
@@ -1820,6 +1828,63 @@ class _AdminDashboardState extends State<AdminDashboard> {
     } else {
       return 'Just now';
     }
+  }
+
+  Widget _buildActivityItem({
+    required IconData icon,
+    required String userName,
+    required String action,
+    required String timeAgo,
+    required Color iconColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  userName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  action,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            timeAgo,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade500,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildUserTypeSection(String title, List<Map<String, dynamic>> users, Color color) {
