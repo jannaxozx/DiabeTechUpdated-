@@ -207,14 +207,21 @@ class _DashboardState extends State<Dashboard> {
     }
 
     final name = user?.displayName ?? "User";
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Responsive screen detection for universal compatibility
+    final isSmallScreen = screenWidth < 360;     // Budget phones like Infinix
+    final isMediumScreen = screenWidth >= 360 && screenWidth < 400;   // Standard phones
+    final isLargeScreen = screenWidth >= 400;    // Samsung A15 and larger phones
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7FDF9),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(isSmallScreen ? 12 : isMediumScreen ? 16 : 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               // ✅ UPDATED: Header with Profile Picture
               Row(
@@ -235,8 +242,8 @@ class _DashboardState extends State<Dashboard> {
                           });
                         },
                         child: Container(
-                          width: 60,
-                          height: 60,
+                          width: isSmallScreen ? 45 : isMediumScreen ? 55 : 60,
+                          height: isSmallScreen ? 45 : isMediumScreen ? 55 : 60,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
@@ -274,20 +281,20 @@ class _DashboardState extends State<Dashboard> {
                                       debugPrint("Image URL: $profilePictureUrl");
                                       return Container(
                                         color: const Color(0xFF2C6E49),
-                                        child: const Icon(
+                                        child: Icon(
                                           Icons.person,
                                           color: Colors.white,
-                                          size: 35,
+                                          size: isSmallScreen ? 25 : isMediumScreen ? 30 : 35,
                                         ),
                                       );
                                     },
                                   )
                                 : Container(
                                     color: const Color(0xFF2C6E49),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.person,
                                       color: Colors.white,
-                                      size: 35,
+                                      size: isSmallScreen ? 25 : isMediumScreen ? 30 : 35,
                                     ),
                                   ),
                           ),
@@ -299,23 +306,25 @@ class _DashboardState extends State<Dashboard> {
                         children: [
                           Text(
                             "Hello, $name 👋",
-                            style: const TextStyle(
-                                fontSize: 22,
+                            style: TextStyle(
+                                fontSize: isSmallScreen ? 16 : isMediumScreen ? 19 : 22,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF2C6E49)),
+                                color: const Color(0xFF2C6E49)),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: isSmallScreen ? 2 : 4),
                           Text(
                             "Type: $diabetesType",
-                            style: const TextStyle(
-                                fontSize: 16,
+                            style: TextStyle(
+                                fontSize: isSmallScreen ? 12 : isMediumScreen ? 14 : 16,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.black54),
                           ),
-                          const SizedBox(height: 4),
-                          const Text(
+                          SizedBox(height: isSmallScreen ? 2 : 4),
+                          Text(
                             "Track your health progress",
-                            style: TextStyle(color: Colors.black54, fontSize: 13),
+                            style: TextStyle(
+                                color: Colors.black54, 
+                                fontSize: isSmallScreen ? 10 : isMediumScreen ? 12 : 13),
                           ),
                         ],
                       ),
@@ -328,23 +337,42 @@ class _DashboardState extends State<Dashboard> {
                 ],
               ),
 
-              const SizedBox(height: 20),
+              SizedBox(height: isSmallScreen ? 12 : isMediumScreen ? 18 : 20),
 
               // Nutrient Tracking
               _sectionTitle("Nutrient Tracking"),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildCircleStat("Calories", caloriesProgress, Colors.orange, 
-                    "${(caloriesProgress * 100).toInt()}% of ${(dailyCalorieGoal ?? 2000).toInt()} kcal"),
-                  _buildCircleStat("Sugar", sugarProgress, Colors.redAccent,
-                    "${(sugarProgress * 100).toInt()}% of ${(dailySugarGoal ?? 50).toInt()}g"),
-                  _buildCircleStat("Carbs", carbsProgress, Colors.blueAccent,
-                    "${(carbsProgress * 100).toInt()}% of ${(dailyCarbGoal ?? 300).toInt()}g"),
-                ],
+              SizedBox(
+                height: isSmallScreen ? 100 : isMediumScreen ? 110 : 120,
+                child: isSmallScreen 
+                  ? SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildCircleStat("Calories", caloriesProgress, Colors.orange, 
+                            "${(caloriesProgress * 100).toInt()}% of ${(dailyCalorieGoal ?? 2000).toInt()} kcal"),
+                          const SizedBox(width: 12),
+                          _buildCircleStat("Sugar", sugarProgress, Colors.redAccent,
+                            "${(sugarProgress * 100).toInt()}% of ${(dailySugarGoal ?? 50).toInt()}g"),
+                          const SizedBox(width: 12),
+                          _buildCircleStat("Carbs", carbsProgress, Colors.blueAccent,
+                            "${(carbsProgress * 100).toInt()}% of ${(dailyCarbGoal ?? 300).toInt()}g"),
+                        ],
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildCircleStat("Calories", caloriesProgress, Colors.orange, 
+                          "${(caloriesProgress * 100).toInt()}% of ${(dailyCalorieGoal ?? 2000).toInt()} kcal"),
+                        _buildCircleStat("Sugar", sugarProgress, Colors.redAccent,
+                          "${(sugarProgress * 100).toInt()}% of ${(dailySugarGoal ?? 50).toInt()}g"),
+                        _buildCircleStat("Carbs", carbsProgress, Colors.blueAccent,
+                          "${(carbsProgress * 100).toInt()}% of ${(dailyCarbGoal ?? 300).toInt()}g"),
+                      ],
+                    ),
               ),
 
-              const SizedBox(height: 25),
+              SizedBox(height: isSmallScreen ? 15 : isMediumScreen ? 20 : 25),
 
               // Goal Progress
               _sectionTitle("Goal Progress"),
@@ -354,12 +382,12 @@ class _DashboardState extends State<Dashboard> {
                     "Weekly goal: ${(weeklyGoalProgress * 100).toInt()}% completed",
               ),
 
-              const SizedBox(height: 25),
+              SizedBox(height: isSmallScreen ? 15 : isMediumScreen ? 20 : 25),
 
               // Recent Scans
               _sectionTitle("Recent Scans"),
               SizedBox(
-                height: 130,
+                height: isSmallScreen ? 100 : isMediumScreen ? 115 : 130,
                 child: recentScans.isEmpty
                     ? Center(
                         child: Text(
@@ -370,7 +398,7 @@ class _DashboardState extends State<Dashboard> {
                     : ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: recentScans.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        separatorBuilder: (_, __) => SizedBox(width: isSmallScreen ? 8 : 12),
                         itemBuilder: (_, index) {
                           final scan = recentScans[index];
                           return _buildScanCard(scan['name'], scan['image']);
@@ -378,16 +406,19 @@ class _DashboardState extends State<Dashboard> {
                       ),
               ),
 
-              const SizedBox(height: 25),
+              SizedBox(height: isSmallScreen ? 15 : isMediumScreen ? 20 : 25),
 
               // Do & Don't Eat
               _sectionTitle("Do & Don't Eat (Diabetic)"),
-              const SizedBox(height: 8),
-              const Text(
+              SizedBox(height: isSmallScreen ? 6 : 8),
+              Text(
                 "Foods added by admin will appear here instantly! 🎉",
-                style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 10 : 12, 
+                  color: Colors.grey, 
+                  fontStyle: FontStyle.italic),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: isSmallScreen ? 8 : 12),
               _buildDoDontCards(),
             ],
           ),
@@ -442,52 +473,77 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 
-  Widget _sectionTitle(String title) => Text(
-        title,
-        style: const TextStyle(
-            fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C6E49)),
-      );
+  Widget _sectionTitle(String title) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isMediumScreen = screenWidth >= 360 && screenWidth < 400;
+    
+    return Text(
+      title,
+      style: TextStyle(
+          fontSize: isSmallScreen ? 14 : isMediumScreen ? 16 : 18, 
+          fontWeight: FontWeight.bold, 
+          color: const Color(0xFF2C6E49)),
+    );
+  }
 
   Widget _buildCircleStat(String label, double value, Color color, String detailText) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isMediumScreen = screenWidth >= 360 && screenWidth < 400;
+    
     return Column(
       children: [
         Stack(
           alignment: Alignment.center,
           children: [
             SizedBox(
-              width: 80,
-              height: 80,
+              width: isSmallScreen ? 60 : isMediumScreen ? 70 : 80,
+              height: isSmallScreen ? 60 : isMediumScreen ? 70 : 80,
               child: CircularProgressIndicator(
                 value: value,
-                strokeWidth: 8,
+                strokeWidth: isSmallScreen ? 6 : isMediumScreen ? 7 : 8,
                 backgroundColor: Colors.grey.shade200,
                 valueColor: AlwaysStoppedAnimation(color),
               ),
             ),
             Text("${(value * 100).toInt()}%",
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: isSmallScreen ? 10 : isMediumScreen ? 11 : 12,
+                )),
           ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: isSmallScreen ? 4 : 6),
         Text(label,
-            style: TextStyle(color: color, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 4),
+            style: TextStyle(
+              color: color, 
+              fontWeight: FontWeight.w500,
+              fontSize: isSmallScreen ? 10 : isMediumScreen ? 11 : 12,
+            )),
+        SizedBox(height: isSmallScreen ? 2 : 4),
         Text(
           detailText,
           style: TextStyle(
             color: Colors.grey.shade600,
-            fontSize: 11,
+            fontSize: isSmallScreen ? 9 : isMediumScreen ? 10 : 11,
             fontWeight: FontWeight.w400,
           ),
           textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 
   Widget _buildScanCard(String foodName, String imagePath) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isMediumScreen = screenWidth >= 360 && screenWidth < 400;
+    
     return Container(
-      width: 120,
+      width: isSmallScreen ? 90 : isMediumScreen ? 105 : 120,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -507,37 +563,40 @@ class _DashboardState extends State<Dashboard> {
             child: imagePath.startsWith("http")
                 ? Image.network(
                     imagePath,
-                    width: 120,
-                    height: 80,
+                    width: isSmallScreen ? 90 : isMediumScreen ? 105 : 120,
+                    height: isSmallScreen ? 60 : isMediumScreen ? 70 : 80,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
-                      width: 120,
-                      height: 80,
+                      width: isSmallScreen ? 90 : isMediumScreen ? 105 : 120,
+                      height: isSmallScreen ? 60 : isMediumScreen ? 70 : 80,
                       color: Colors.grey.shade200,
-                      child: const Icon(Icons.fastfood, color: Colors.grey),
+                      child: Icon(Icons.fastfood, color: Colors.grey, size: isSmallScreen ? 20 : isMediumScreen ? 25 : 30),
                     ),
                   )
                 : Image.asset(
                     imagePath,
-                    width: 120,
-                    height: 80,
+                    width: isSmallScreen ? 90 : isMediumScreen ? 105 : 120,
+                    height: isSmallScreen ? 60 : isMediumScreen ? 70 : 80,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
-                      width: 120,
-                      height: 80,
+                      width: isSmallScreen ? 90 : isMediumScreen ? 105 : 120,
+                      height: isSmallScreen ? 60 : isMediumScreen ? 70 : 80,
                       color: Colors.grey.shade200,
-                      child: const Icon(Icons.fastfood, color: Colors.grey),
+                      child: Icon(Icons.fastfood, color: Colors.grey, size: isSmallScreen ? 20 : isMediumScreen ? 25 : 30),
                     ),
                   ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: isSmallScreen ? 4 : 6),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 4 : 6),
             child: Text(foodName,
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: isSmallScreen ? 9 : isMediumScreen ? 10 : 12,
+                )),
           ),
         ],
       ),
@@ -545,50 +604,128 @@ class _DashboardState extends State<Dashboard> {
   }
 
   Widget _buildDoDontCards() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isMediumScreen = screenWidth >= 360 && screenWidth < 400;
+    
+    // Show loading or error state if diabetes type is not available
+    debugPrint("🔍 Diabetes type check: diabetesType = '$diabetesType'");
+    if (diabetesType == null || diabetesType == 'Not set' || diabetesType == "Error loading type" || diabetesType == "Loading...") {
+      debugPrint("🔍 Showing loading/error state for diabetes type: $diabetesType");
+      return SizedBox(
+        height: isSmallScreen ? 120 : isMediumScreen ? 135 : 150,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.restaurant_menu, size: isSmallScreen ? 35 : isMediumScreen ? 42 : 50, color: Colors.grey.shade400),
+              SizedBox(height: isSmallScreen ? 6 : 8),
+              Text(
+                diabetesType == "Error loading type" ? 'Failed to load recommendations' : 'Loading food recommendations...',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: isSmallScreen ? 12 : isMediumScreen ? 14 : 16,
+                ),
+              ),
+              if (diabetesType == "Error loading type") ...[
+                SizedBox(height: isSmallScreen ? 6 : 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() => diabetesType = "Loading...");
+                    _fetchUserDiabetesType();
+                  },
+                  icon: Icon(Icons.refresh, size: isSmallScreen ? 14 : 16),
+                  label: Text('Retry', style: TextStyle(fontSize: isSmallScreen ? 12 : 14)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    minimumSize: Size(isSmallScreen ? 80 : 100, isSmallScreen ? 30 : 35),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    
+    debugPrint("🔍 Building StreamBuilder with diabetesType: $diabetesType");
     return SizedBox(
-      height: 150,
+      height: isSmallScreen ? 120 : isMediumScreen ? 135 : 150,
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('food_rules')
-            .orderBy('createdAt', descending: false)
-            .snapshots(),
+            .snapshots(), // Fetch all foods, filter client-side
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          try {
+            debugPrint("🔍 StreamBuilder state: ${snapshot.connectionState}, hasError: ${snapshot.hasError}");
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error loading foods: ${snapshot.error}',
-                style: const TextStyle(color: Colors.red),
-              ),
-            );
-          }
+            if (snapshot.hasError) {
+              debugPrint("❌ StreamBuilder error: ${snapshot.error}");
+              return Center(
+                child: Text(
+                  'Error loading foods: ${snapshot.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              );
+            }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.restaurant_menu, size: 50, color: Colors.grey.shade400),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'No foods available yet',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const Text(
-                    'Admin will add foods soon!',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
-              ),
-            );
-          }
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.restaurant_menu, size: isSmallScreen ? 35 : isMediumScreen ? 42 : 50, color: Colors.grey.shade400),
+                    SizedBox(height: isSmallScreen ? 6 : 8),
+                    Text(
+                      'No foods available yet',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: isSmallScreen ? 12 : isMediumScreen ? 14 : 16,
+                      ),
+                    ),
+                    Text(
+                      'Admin will add foods for $diabetesType diabetes soon!',
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 10 : isMediumScreen ? 11 : 12, 
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
 
-          final docs = snapshot.data!.docs;
-          final doFoods = docs.where((doc) => doc['category'] == 'Do').toList();
-          final dontFoods = docs.where((doc) => doc['category'] == "Don't").toList();
+            final docs = snapshot.data!.docs;
+            debugPrint("🔍 Found ${docs.length} total foods in database");
+            
+            // Filter foods by user's diabetes type (client-side)
+            final filteredDocs = docs.where((doc) {
+              final docData = doc.data() as Map<String, dynamic>?;
+              if (docData == null) return false;
+              
+              final docDiabetesType = docData['diabetesType']?.toString();
+              debugPrint("🔍 Food: ${docData['name']} - DiabetesType: $docDiabetesType");
+              return docDiabetesType == diabetesType;
+            }).toList();
+            
+            debugPrint("🔍 After filtering: ${filteredDocs.length} foods match user's diabetes type ($diabetesType)");
+            
+            // Sort client-side by createdAt (newest first)
+            filteredDocs.sort((a, b) {
+              final aTime = a['createdAt'] as Timestamp?;
+              final bTime = b['createdAt'] as Timestamp?;
+              if (aTime == null && bTime == null) return 0;
+              if (aTime == null) return 1;
+              if (bTime == null) return -1;
+              return bTime.compareTo(aTime); // Descending order
+            });
+            
+            final doFoods = filteredDocs.where((doc) => doc['category'] == 'Do').toList();
+            final dontFoods = filteredDocs.where((doc) => doc['category'] == "Don't").toList();
 
           return ListView(
             scrollDirection: Axis.horizontal,
@@ -605,7 +742,7 @@ class _DashboardState extends State<Dashboard> {
                   Colors.green.shade300,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: isSmallScreen ? 8 : 12),
               GestureDetector(
                 onTap: () => _openDoDontScreen(
                   "🚫 DON'T - Foods to Avoid",
@@ -620,6 +757,38 @@ class _DashboardState extends State<Dashboard> {
               ),
             ],
           );
+          } catch (e) {
+            debugPrint("❌ Unexpected error in StreamBuilder: $e");
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error, size: isSmallScreen ? 35 : isMediumScreen ? 42 : 50, color: Colors.red.shade400),
+                  SizedBox(height: isSmallScreen ? 6 : 8),
+                  Text(
+                    'Something went wrong',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: isSmallScreen ? 12 : isMediumScreen ? 14 : 16,
+                    ),
+                  ),
+                  SizedBox(height: isSmallScreen ? 4 : 6),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {});
+                    },
+                    icon: Icon(Icons.refresh, size: isSmallScreen ? 14 : 16),
+                    label: Text('Retry', style: TextStyle(fontSize: isSmallScreen ? 12 : 14)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      minimumSize: Size(isSmallScreen ? 80 : 100, isSmallScreen ? 30 : 35),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
         },
       ),
     );
@@ -644,8 +813,12 @@ class _DashboardState extends State<Dashboard> {
   }
 
   Widget _buildDoDontCard(String title, String subtitle, Color color) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 360;
+    final isMediumScreen = screenWidth >= 360 && screenWidth < 400;
+    
     return Container(
-      width: 180,
+      width: isSmallScreen ? 140 : isMediumScreen ? 160 : 180,
       decoration: BoxDecoration(
         color: color.withAlpha((0.8 * 255).round()),
         borderRadius: BorderRadius.circular(16),
@@ -662,14 +835,17 @@ class _DashboardState extends State<Dashboard> {
         children: [
           Text(
             title,
-            style: const TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+            style: TextStyle(
+                fontSize: isSmallScreen ? 16 : isMediumScreen ? 18 : 20, 
+                fontWeight: FontWeight.bold, 
+                color: Colors.white),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: isSmallScreen ? 2 : 4),
           Text(
             subtitle,
-            style: const TextStyle(
-                fontSize: 12, color: Colors.white70),
+            style: TextStyle(
+                fontSize: isSmallScreen ? 10 : isMediumScreen ? 11 : 12, 
+                color: Colors.white70),
           ),
         ],
       ),

@@ -87,13 +87,17 @@ class _RegisterState extends State<Register> {
 
       debugPrint("✅ User created: ${user.uid}");
 
-      // 2. Update display name
+      // 2. Send email verification
+      await user.sendEmailVerification();
+      debugPrint("✅ Email verification sent to ${user.email}");
+
+      // 3. Update display name
       await user.updateDisplayName(_nameController.text.trim());
       await user.reload();
       
       debugPrint("✅ Display name updated");
 
-      // 3. Save user data to Firestore
+      // 4. Save user data to Firestore
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -102,13 +106,14 @@ class _RegisterState extends State<Register> {
         'email': user.email,
         'role': 'user',
         'diabetesType': _selectedDiabetesType,
+        'emailVerified': false, // Track verification status
         'createdAt': FieldValue.serverTimestamp(),
         'uid': user.uid,
       });
 
       debugPrint("✅ User data saved to Firestore");
 
-      // 4. Sign out the user so they need to log in
+      // 5. Sign out user so they can verify email first
       await FirebaseAuth.instance.signOut();
       debugPrint("✅ User signed out after registration");
 
@@ -117,9 +122,9 @@ class _RegisterState extends State<Register> {
       // 5. Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("✅ Registration successful! Please log in."),
+          content: Text("✅ Registration successful! Please check your email and verify before logging in."),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+          duration: Duration(seconds: 4),
         ),
       );
 

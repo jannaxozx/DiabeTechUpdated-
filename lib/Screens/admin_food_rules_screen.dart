@@ -18,6 +18,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
   final _fat = TextEditingController();
 
   String _category = 'do';
+  String _selectedDiabetesType = 'Mild'; // Add diabetes type selection
   bool _saving = false;
 
   Future<void> _addFood() async {
@@ -37,6 +38,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
         'protein': int.tryParse(_protein.text) ?? 0,
         'fat': int.tryParse(_fat.text) ?? 0,
         'category': _category,
+        'diabetesType': _selectedDiabetesType, // Add diabetes type
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -112,6 +114,26 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
               onChanged: (v) => setState(() => _category = v!),
               decoration: InputDecoration(
                 labelText: 'Category',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // Diabetes Type dropdown
+            DropdownButtonFormField<String>(
+              value: _selectedDiabetesType,
+              items: const [
+                DropdownMenuItem(value: 'Mild', child: Text('🟢 Mild')),
+                DropdownMenuItem(value: 'Moderate', child: Text('🟡 Moderate')),
+                DropdownMenuItem(value: 'Severe', child: Text('🔴 Severe')),
+              ],
+              onChanged: (v) => setState(() => _selectedDiabetesType = v!),
+              decoration: InputDecoration(
+                labelText: 'Diabetes Type',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
                 ),
@@ -209,6 +231,18 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                     final category = data['category'] ?? 'do';
                     final categoryText = category == 'do' ? 'Do' : "Don't";
                     final foodName = (data['name'] ?? 'Unknown').toString();
+                    final diabetesType = data['diabetesType'] ?? 'Mild';
+
+                    // Get color for diabetes type
+                    Color diabetesTypeColor = Colors.green;
+                    String diabetesTypeIcon = '🟢';
+                    if (diabetesType == 'Moderate') {
+                      diabetesTypeColor = Colors.orange;
+                      diabetesTypeIcon = '🟡';
+                    } else if (diabetesType == 'Severe') {
+                      diabetesTypeColor = Colors.red;
+                      diabetesTypeIcon = '🔴';
+                    }
 
                     return Card(
                       margin: const EdgeInsets.only(bottom: 10),
@@ -262,14 +296,34 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                                       ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
-                                      categoryText,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: category == 'do'
-                                            ? Colors.green
-                                            : Colors.red,
-                                      ),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          categoryText,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: category == 'do'
+                                                ? Colors.green
+                                                : Colors.red,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: diabetesTypeColor.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            '$diabetesTypeIcon $diabetesType',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: diabetesTypeColor,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),

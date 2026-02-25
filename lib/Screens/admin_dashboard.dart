@@ -36,6 +36,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final TextEditingController fatController = TextEditingController();
 
   String category = "Do";
+  String _selectedDiabetesType = "Mild"; // Add diabetes type selection
   File? _selectedImage;
   Uint8List? _webImage;
 
@@ -140,6 +141,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 _selectedImage = null;
                 _webImage = null;
                 category = "Do";
+                _selectedDiabetesType = "Mild"; // Reset diabetes type
                 _uploadStatus = '';
               });
               ScaffoldMessenger.of(context).showSnackBar(
@@ -435,6 +437,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       await FirebaseFirestore.instance.collection('food_rules').add({
         'name': name,
         'category': category,
+        'diabetesType': _selectedDiabetesType, // Add diabetes type
         'portionSize': portionController.text.trim(),
         'calories': double.tryParse(caloriesController.text.trim()) ?? 0.0,
         'carbs': double.tryParse(carbsController.text.trim()) ?? 0.0,
@@ -474,11 +477,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("✅ Food added successfully! Users can now see it."),
+        SnackBar(
+          content: Text("✅ Food added successfully! It will appear for $_selectedDiabetesType diabetes users."),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        )
+          duration: const Duration(seconds: 3),
+        ),
       );
     } catch (e) {
       debugPrint('Error adding food: $e');
@@ -1650,6 +1653,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   DropdownMenuItem(value: "Don't", child: Text("❌ Don't (Avoid)")),
                 ],
                 onChanged: _isUploading ? null : (val) => setState(() => category = val ?? 'Do'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("Diabetes Type: ", style: TextStyle(fontWeight: FontWeight.bold)),
+              DropdownButton<String>(
+                value: _selectedDiabetesType,
+                items: const [
+                  DropdownMenuItem(value: 'Mild', child: Text('🟢 Mild')),
+                  DropdownMenuItem(value: 'Moderate', child: Text('🟡 Moderate')),
+                  DropdownMenuItem(value: 'Severe', child: Text('🔴 Severe')),
+                ],
+                onChanged: _isUploading ? null : (val) => setState(() => _selectedDiabetesType = val ?? 'Mild'),
               ),
             ],
           ),
