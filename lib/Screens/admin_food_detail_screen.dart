@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class AdminFoodDetailScreen extends StatelessWidget {
+/// Detail screen for a single food
+class AdminFoodDetailScreen extends StatefulWidget {
   final String foodId;
 
   const AdminFoodDetailScreen({Key? key, required this.foodId})
       : super(key: key);
+
+  @override
+  State<AdminFoodDetailScreen> createState() => _AdminFoodDetailScreenState();
+}
+
+class _AdminFoodDetailScreenState extends State<AdminFoodDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +31,7 @@ class AdminFoodDetailScreen extends StatelessWidget {
       body: FutureBuilder<DocumentSnapshot>(
         future: FirebaseFirestore.instance
             .collection('food_rules')
-            .doc(foodId)
+            .doc(widget.foodId)
             .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -53,6 +60,18 @@ class AdminFoodDetailScreen extends StatelessWidget {
           final category = (data['category'] ?? '').toString().toLowerCase().trim();
           final isRecommended = category.startsWith('do');
           final imageUrl = (data['imageUrl'] ?? data['imagePath'] ?? '') as String;
+          final diabetesType = (data['diabetesType'] ?? 'Mild').toString();
+
+          // Get color and icon for diabetes type
+          Color diabetesTypeColor = Colors.green;
+          String diabetesTypeIcon = '🟢';
+          if (diabetesType == 'Moderate') {
+            diabetesTypeColor = Colors.orange;
+            diabetesTypeIcon = '🟡';
+          } else if (diabetesType == 'Severe') {
+            diabetesTypeColor = Colors.red;
+            diabetesTypeIcon = '🔴';
+          }
 
           return SingleChildScrollView(
             child: Column(
@@ -121,6 +140,20 @@ class AdminFoodDetailScreen extends StatelessWidget {
                         ),
                         backgroundColor:
                             isRecommended ? Colors.green.shade100 : Colors.red.shade100,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Diabetes Type chip
+                      Chip(
+                        label: Text(
+                          '$diabetesTypeIcon $diabetesType Diabetes',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        backgroundColor: diabetesTypeColor.withOpacity(0.2),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
                     ],
@@ -230,6 +263,7 @@ class AdminFoodDetailScreen extends StatelessWidget {
     );
   }
 
+  /// --- Helper Widgets ---
   Widget _detailCard(String label, String value, IconData icon, Color color) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -289,6 +323,7 @@ class AdminFoodDetailScreen extends StatelessWidget {
     );
   }
 
+  /// --- Delete Food Function ---
   Future<void> _deleteFood(BuildContext context) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -315,7 +350,7 @@ class AdminFoodDetailScreen extends StatelessWidget {
       try {
         await FirebaseFirestore.instance
             .collection('food_rules')
-            .doc(foodId)
+            .doc(widget.foodId)
             .delete();
 
         if (context.mounted) {

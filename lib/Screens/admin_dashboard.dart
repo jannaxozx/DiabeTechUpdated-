@@ -28,6 +28,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
   String searchQuery = "";
   String _selectedUserDiabetesType = 'All';
 
+  // ── ADDED: filter state for Food Data tab ──
+  String _filterFoodDiabetesType = 'All';
+
   final TextEditingController nameController = TextEditingController();
   final TextEditingController portionController = TextEditingController();
   final TextEditingController caloriesController = TextEditingController();
@@ -1520,11 +1523,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildFoodDataPage() {
-    final foodsStream = FirebaseFirestore.instance
-        .collection('food_rules')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -1707,14 +1705,78 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
           const SizedBox(height: 26),
           const Divider(),
-          const SizedBox(height: 6),
+          const SizedBox(height: 12),
 
+          // ── FILTER DROPDOWN (compact, right side) ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                width: 200,
+                child: DropdownButtonFormField<String>(
+                  value: _filterFoodDiabetesType,
+                  decoration: InputDecoration(
+                    labelText: 'Filter',
+                    labelStyle: const TextStyle(fontSize: 12, color: Colors.green),
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: const Icon(Icons.filter_list, color: Colors.green, size: 18),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: Colors.green),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: Colors.green, width: 1),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: const BorderSide(color: Colors.green, width: 1),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  style: const TextStyle(fontSize: 12),
+                  items: const [
+                    DropdownMenuItem(value: 'All', child: Text('📋 All', style: TextStyle(fontSize: 12))),
+                    DropdownMenuItem(value: 'Mild', child: Text('🟢 Mild', style: TextStyle(fontSize: 12))),
+                    DropdownMenuItem(value: 'Moderate', child: Text('🟡 Moderate', style: TextStyle(fontSize: 12))),
+                    DropdownMenuItem(value: 'Severe', child: Text('🔴 Severe', style: TextStyle(fontSize: 12))),
+                  ],
+                  onChanged: (val) => setState(() => _filterFoodDiabetesType = val!),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── FOOD LIST (now filtered) ──
           StreamBuilder<QuerySnapshot>(
-            stream: foodsStream,
+            stream: FirebaseFirestore.instance
+                .collection('food_rules')
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
             builder: (context, snap) {
               if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-              final docs = snap.data!.docs;
-              if (docs.isEmpty) return const Text('No foods yet');
+
+              // Apply filter
+              final docs = snap.data!.docs.where((doc) {
+                if (_filterFoodDiabetesType == 'All') return true;
+                final data = doc.data() as Map<String, dynamic>;
+                return (data['diabetesType']?.toString() ?? 'Mild') == _filterFoodDiabetesType;
+              }).toList();
+
+              if (docs.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 30),
+                  child: Center(
+                    child: Text(
+                      _filterFoodDiabetesType == 'All' ? 'No foods yet' : 'No foods found for $_filterFoodDiabetesType Diabetes',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                    ),
+                  ),
+                );
+              }
 
               return ListView.separated(
                 shrinkWrap: true,
