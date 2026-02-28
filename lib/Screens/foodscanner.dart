@@ -534,6 +534,8 @@ Rules:
                           '${rule['protein']} g'),
                     if (_toDouble(rule['fat']) > 0)
                       _row(Icons.opacity, 'Fat', '${rule['fat']} g'),
+                    if (_toDouble(rule['sugar']) > 0)
+                      _row(Icons.cake, 'Sugar', '${rule['sugar']} g'),
                     if ((rule['diabetesType'] ?? '').toString().isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Row(children: [

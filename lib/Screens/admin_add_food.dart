@@ -202,6 +202,15 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    TextField(
+                      controller: _sugarController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Sugar (g)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: _category,
                       items: const [

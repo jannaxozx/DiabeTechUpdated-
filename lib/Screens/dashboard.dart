@@ -863,36 +863,37 @@ class _DashboardState extends State<Dashboard> {
         NutrientTile(label: 'Carbs', value: '${data['carbs'] ?? 0}g'),
         NutrientTile(label: 'Protein', value: '${data['protein'] ?? 0}g'),
         NutrientTile(label: 'Fat', value: '${data['fat'] ?? 0}g'),
+        NutrientTile(label: 'Sugar', value: '${data['sugar'] ?? 0}g'),
         NutrientTile(label: 'Calories', value: '${data['calories'] ?? 0} kcal'),
       ];
 
-      return _buildFoodCard(imageUrl, name, nutrients);
+      return _buildFoodCard(imageUrl, name, nutrients, data);
     }).toList();
   }
 
   Widget _buildFoodCard(
-      String imageUrl, String foodName, List<NutrientTile> nutrients) {
+      String imageUrl, String foodName, List<NutrientTile> nutrients, Map<String, dynamic> data) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(8),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               child: imageUrl.isNotEmpty
                   ? Image.network(
                       imageUrl,
-                      width: 80,
-                      height: 80,
+                      width: 60,
+                      height: 60,
                       fit: BoxFit.cover,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
                         return Container(
-                          width: 80,
-                          height: 80,
+                          width: 60,
+                          height: 60,
                           color: Colors.grey.shade200,
                           child: const Center(
                             child: CircularProgressIndicator(strokeWidth: 2),
@@ -900,26 +901,27 @@ class _DashboardState extends State<Dashboard> {
                         );
                       },
                       errorBuilder: (_, __, ___) => Container(
-                        width: 80,
-                        height: 80,
+                        width: 60,
+                        height: 60,
                         color: Colors.grey.shade200,
-                        child: const Icon(Icons.fastfood, color: Colors.grey, size: 40),
+                        child: const Icon(Icons.fastfood, color: Colors.grey, size: 30),
                       ),
                     )
                   : Container(
-                      width: 80,
-                      height: 80,
+                      width: 60,
+                      height: 60,
                       decoration: BoxDecoration(
                         color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Icon(Icons.fastfood, color: Colors.grey, size: 40),
+                      child: const Icon(Icons.fastfood, color: Colors.grey, size: 30),
                     ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     foodName,
@@ -928,9 +930,53 @@ class _DashboardState extends State<Dashboard> {
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF2C6E49),
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 8),
-                  ...nutrients,
+                  const SizedBox(height: 6),
+                  Text(
+                    data['portionSize'] ?? 'N/A',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    height: 30,
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 2,
+                      children: [
+                        NutrientTile(label: 'Carbs', value: '${data['carbs'] ?? 0}g'),
+                        NutrientTile(label: 'Protein', value: '${data['protein'] ?? 0}g'),
+                        NutrientTile(label: 'Fat', value: '${data['fat'] ?? 0}g'),
+                        NutrientTile(label: 'Sugar', value: '${data['sugar'] ?? 0}g'),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Calories: ",
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              '${data['calories'] ?? 0} kcal',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -949,14 +995,19 @@ class NutrientTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(3),
+      ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            "$label: ",
+            "$label ",
             style: const TextStyle(
-              fontSize: 13,
+              fontSize: 10,
               color: Colors.black54,
               fontWeight: FontWeight.w500,
             ),
@@ -964,7 +1015,7 @@ class NutrientTile extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 13,
+              fontSize: 10,
               color: Colors.black87,
               fontWeight: FontWeight.bold,
             ),

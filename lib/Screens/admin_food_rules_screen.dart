@@ -16,6 +16,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
   final TextEditingController _carbsController       = TextEditingController();
   final TextEditingController _proteinController     = TextEditingController();
   final TextEditingController _fatController         = TextEditingController();
+  final TextEditingController _sugarController       = TextEditingController(); // Added
   final TextEditingController _portionSizeController = TextEditingController();
 
   String _category           = 'Do';
@@ -38,6 +39,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
     _carbsController.dispose();
     _proteinController.dispose();
     _fatController.dispose();
+    _sugarController.dispose(); // Added
     _portionSizeController.dispose();
     super.dispose();
   }
@@ -99,6 +101,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
         'carbs':     double.tryParse(_carbsController.text.trim())    ?? 0.0,
         'protein':   double.tryParse(_proteinController.text.trim())  ?? 0.0,
         'fat':       double.tryParse(_fatController.text.trim())      ?? 0.0,
+        'sugar':     double.tryParse(_sugarController.text.trim())    ?? 0.0, // Added
         'imageUrl':  '',
         'imagePath': '',
         'createdAt': FieldValue.serverTimestamp(),
@@ -112,6 +115,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
         _carbsController.clear();
         _proteinController.clear();
         _fatController.clear();
+        _sugarController.clear(); // Added
         _portionSizeController.clear();
         _category     = 'Do';
         _diabetesType = 'Mild';
@@ -240,7 +244,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                     ]),
                     const SizedBox(height: 10),
 
-                    // Protein + Fat
+                    // Protein + Fat + Sugar
                     Row(children: [
                       Expanded(
                         child: TextField(
@@ -255,6 +259,14 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                           controller: _fatController,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(labelText: 'Fat (g)', border: OutlineInputBorder()),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _sugarController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Sugar (g)', border: OutlineInputBorder()),
                         ),
                       ),
                     ]),
@@ -319,7 +331,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 SizedBox(
-                  width: 200, // Minimized width
+                  width: 200,
                   child: DropdownButtonFormField<String>(
                     value: _filterDiabetesType,
                     decoration: InputDecoration(
@@ -346,6 +358,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                 ),
               ],
             ),
+
             const SizedBox(height: 12),
 
             // ── FOOD LIST ─────────────────────────────────────────────

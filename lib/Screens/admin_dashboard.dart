@@ -35,6 +35,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final TextEditingController carbsController = TextEditingController();
   final TextEditingController proteinController = TextEditingController();
   final TextEditingController fatController = TextEditingController();
+  final TextEditingController sugarController = TextEditingController(); // ADDED
 
   String category = "Do";
   String _selectedDiabetesType = "Mild";
@@ -86,6 +87,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     carbsController.dispose();
     proteinController.dispose();
     fatController.dispose();
+    sugarController.dispose(); // ADDED
     super.dispose();
   }
 
@@ -126,6 +128,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               carbsController.clear();
               proteinController.clear();
               fatController.clear();
+              sugarController.clear(); // ADDED
               setState(() {
                 _selectedImage = null;
                 _webImage = null;
@@ -288,6 +291,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Text("Protein: ${proteinController.text.trim()}g"),
             if (fatController.text.trim().isNotEmpty)
               Text("Fat: ${fatController.text.trim()}g"),
+            if (sugarController.text.trim().isNotEmpty)
+              Text("Sugar: ${sugarController.text.trim()}g"), // ADDED
             const SizedBox(height: 8),
             Text(
               hasImage ? "✅ With image" : "⚠️ No image",
@@ -387,7 +392,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       await FirebaseFirestore.instance.collection('food_rules').add({
         'name': name,
         'nameLower': name.toLowerCase().trim(),
-        'searchKeywords': _buildKeywords(name), // auto-generated from name only
+        'searchKeywords': _buildKeywords(name),
         'category': category,
         'diabetesType': _selectedDiabetesType,
         'portionSize': portionController.text.trim(),
@@ -395,6 +400,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         'carbs': double.tryParse(carbsController.text.trim()) ?? 0.0,
         'protein': double.tryParse(proteinController.text.trim()) ?? 0.0,
         'fat': double.tryParse(fatController.text.trim()) ?? 0.0,
+        'sugar': double.tryParse(sugarController.text.trim()) ?? 0.0, // ADDED
         'imageUrl': imageUrl,
         'imagePath': imagePath,
         'createdAt': FieldValue.serverTimestamp(),
@@ -410,6 +416,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       carbsController.clear();
       proteinController.clear();
       fatController.clear();
+      sugarController.clear(); // ADDED
 
       if (mounted) {
         setState(() {
@@ -636,22 +643,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                value,
-                style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    height: 1.0),
-              ),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      height: 1.0)),
               const SizedBox(height: 4),
-              Text(
-                title,
-                style: const TextStyle(
-                    fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis),
             ],
           ),
         ],
@@ -665,85 +668,51 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: Column(
         children: [
           const Text('Add New Food',
-              style:
-                  TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
           const SizedBox(height: 8),
-          const Text('Foods will appear in user Do/Don\'t screen',
+          const Text('Foods will appear in user Do\'s/Don\'t screen',
               style: TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 12),
 
-          // Image picker
           GestureDetector(
             onTap: _isUploading ? null : _pickImage,
             child: Container(
-              width: 200,
-              height: 200,
+              width: 200, height: 200,
               decoration: BoxDecoration(
-                border: Border.all(
-                    color: _isUploading ? Colors.grey : Colors.green, width: 2),
+                border: Border.all(color: _isUploading ? Colors.grey : Colors.green, width: 2),
                 borderRadius: BorderRadius.circular(12),
                 color: _isUploading ? Colors.grey.shade200 : Colors.white,
               ),
               child: _selectedImage != null
                   ? Stack(children: [
-                      ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.file(_selectedImage!,
-                              fit: BoxFit.cover, width: 200, height: 200)),
+                      ClipRRect(borderRadius: BorderRadius.circular(10),
+                          child: Image.file(_selectedImage!, fit: BoxFit.cover, width: 200, height: 200)),
                       if (!_isUploading)
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                                color: Colors.green,
-                                borderRadius: BorderRadius.circular(20)),
-                            child: const Icon(Icons.check,
-                                color: Colors.white, size: 16),
-                          ),
-                        ),
+                        Positioned(top: 8, right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(20)),
+                              child: const Icon(Icons.check, color: Colors.white, size: 16),
+                            )),
                     ])
                   : _webImage != null
                       ? Stack(children: [
-                          ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Image.memory(_webImage!,
-                                  fit: BoxFit.cover, width: 200, height: 200)),
+                          ClipRRect(borderRadius: BorderRadius.circular(10),
+                              child: Image.memory(_webImage!, fit: BoxFit.cover, width: 200, height: 200)),
                           if (!_isUploading)
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                    color: Colors.green,
-                                    borderRadius: BorderRadius.circular(20)),
-                                child: const Icon(Icons.check,
-                                    color: Colors.white, size: 16),
-                              ),
-                            ),
+                            Positioned(top: 8, right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(20)),
+                                  child: const Icon(Icons.check, color: Colors.white, size: 16),
+                                )),
                         ])
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_a_photo,
-                              color: _isUploading ? Colors.grey : Colors.green,
-                              size: 56,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _isUploading
-                                  ? 'Processing...'
-                                  : 'Tap to add image (optional)',
-                              style: TextStyle(
-                                  color:
-                                      _isUploading ? Colors.grey : Colors.green,
-                                  fontSize: 12),
-                            ),
-                          ],
-                        ),
+                      : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(Icons.add_a_photo, color: _isUploading ? Colors.grey : Colors.green, size: 56),
+                          const SizedBox(height: 8),
+                          Text(_isUploading ? 'Processing...' : 'Tap to add image (optional)',
+                              style: TextStyle(color: _isUploading ? Colors.grey : Colors.green, fontSize: 12)),
+                        ]),
             ),
           ),
 
@@ -751,96 +720,74 @@ class _AdminDashboardState extends State<AdminDashboard> {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(_uploadStatus,
-                  style: const TextStyle(
-                      fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold)),
             ),
 
           const SizedBox(height: 14),
 
           Wrap(
-            spacing: 10,
-            runSpacing: 10,
+            spacing: 10, runSpacing: 10,
             children: [
               _foodField(Icons.restaurant, 'Food Name*', nameController),
               _foodField(Icons.scale, 'Portion Size*', portionController),
-              _foodField(Icons.local_fire_department, 'Calories', caloriesController,
-                  isNumber: true),
-              _foodField(Icons.bubble_chart, 'Carbs (g)', carbsController,
-                  isNumber: true),
-              _foodField(Icons.fitness_center, 'Protein (g)', proteinController,
-                  isNumber: true),
+              _foodField(Icons.local_fire_department, 'Calories', caloriesController, isNumber: true),
+              _foodField(Icons.bubble_chart, 'Carbs (g)', carbsController, isNumber: true),
+              _foodField(Icons.fitness_center, 'Protein (g)', proteinController, isNumber: true),
               _foodField(Icons.opacity, 'Fat (g)', fatController, isNumber: true),
+              _foodField(Icons.water_drop, 'Sugar (g)', sugarController, isNumber: true), // ADDED
             ],
           ),
           const SizedBox(height: 10),
 
-          // Category dropdown
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text("Category: ", style: TextStyle(fontWeight: FontWeight.bold)),
-              DropdownButton<String>(
-                value: category,
-                items: const [
-                  DropdownMenuItem(value: 'Do', child: Text('✅ Do (Recommended)')),
-                  DropdownMenuItem(value: "Don't", child: Text("❌ Don't (Avoid)")),
-                ],
-                onChanged: _isUploading
-                    ? null
-                    : (val) => setState(() => category = val ?? 'Do'),
-              ),
-            ],
-          ),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Text("Category: ", style: TextStyle(fontWeight: FontWeight.bold)),
+            DropdownButton<String>(
+              value: category,
+              items: const [
+                DropdownMenuItem(value: 'Do', child: Text('✅ Do (Recommended)')),
+                DropdownMenuItem(value: "Don't", child: Text("❌ Don't (Avoid)")),
+              ],
+              onChanged: _isUploading ? null : (val) => setState(() => category = val ?? 'Do'),
+            ),
+          ]),
           const SizedBox(height: 10),
 
-          // Diabetes type dropdown
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text("Diabetes Type: ", style: TextStyle(fontWeight: FontWeight.bold)),
-              DropdownButton<String>(
-                value: _selectedDiabetesType,
-                items: const [
-                  DropdownMenuItem(value: 'Mild', child: Text('🟢 Mild')),
-                  DropdownMenuItem(value: 'Moderate', child: Text('🟡 Moderate')),
-                  DropdownMenuItem(value: 'Severe', child: Text('🔴 Severe')),
-                ],
-                onChanged: _isUploading
-                    ? null
-                    : (val) => setState(() => _selectedDiabetesType = val ?? 'Mild'),
-              ),
-            ],
-          ),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Text("Diabetes Type: ", style: TextStyle(fontWeight: FontWeight.bold)),
+            DropdownButton<String>(
+              value: _selectedDiabetesType,
+              items: const [
+                DropdownMenuItem(value: 'Mild', child: Text('🟢 Mild')),
+                DropdownMenuItem(value: 'Moderate', child: Text('🟡 Moderate')),
+                DropdownMenuItem(value: 'Severe', child: Text('🔴 Severe')),
+              ],
+              onChanged: _isUploading ? null : (val) => setState(() => _selectedDiabetesType = val ?? 'Mild'),
+            ),
+          ]),
           const SizedBox(height: 12),
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _isUploading ? null : _clearForm,
-                icon: const Icon(Icons.clear_all, color: Colors.orange),
-                label: const Text('Clear Form', style: TextStyle(color: Colors.orange)),
-                style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.orange),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: _isUploading ? null : _addFood,
-                icon: _isUploading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child:
-                            CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.add),
-                label: Text(_isUploading ? 'Adding...' : 'Add Food'),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: _isUploading ? Colors.grey : Colors.green,
-                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14)),
-              ),
-            ],
-          ),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            OutlinedButton.icon(
+              onPressed: _isUploading ? null : _clearForm,
+              icon: const Icon(Icons.clear_all, color: Colors.orange),
+              label: const Text('Clear Form', style: TextStyle(color: Colors.orange)),
+              style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.orange),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: _isUploading ? null : _addFood,
+              icon: _isUploading
+                  ? const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.add),
+              label: Text(_isUploading ? 'Adding...' : 'Add Food'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _isUploading ? Colors.grey : Colors.green,
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14)),
+            ),
+          ]),
 
           const SizedBox(height: 26),
           const Divider(),
@@ -852,27 +799,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Padding(
                 padding: const EdgeInsets.only(right: 16.0),
                 child: SizedBox(
-                  width: 200, // Minimized width
+                  width: 200,
                   child: DropdownButtonFormField<String>(
                     value: _filterFoodDiabetesType,
                     decoration: InputDecoration(
                       labelText: 'Filter',
-                      labelStyle:
-                          const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                      filled: true,
-                      fillColor: Colors.white,
+                      labelStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                      filled: true, fillColor: Colors.white,
                       prefixIcon: const Icon(Icons.filter_list, color: Colors.green, size: 20),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.green)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.green, width: 1)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.green, width: 2)),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green, width: 1)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green, width: 2)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     items: const [
                       DropdownMenuItem(value: 'All', child: Text('📋 All', style: TextStyle(fontSize: 12))),
@@ -898,18 +836,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
               final docs = snap.data!.docs.where((doc) {
                 if (_filterFoodDiabetesType == 'All') return true;
                 final data = doc.data() as Map<String, dynamic>;
-                return (data['diabetesType']?.toString() ?? 'Mild') ==
-                    _filterFoodDiabetesType;
+                return (data['diabetesType']?.toString() ?? 'Mild') == _filterFoodDiabetesType;
               }).toList();
 
               if (docs.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 30),
-                  child: Center(
-                      child: Text(
-                    _filterFoodDiabetesType == 'All'
-                        ? 'No foods yet'
-                        : 'No foods found for $_filterFoodDiabetesType Diabetes',
+                  child: Center(child: Text(
+                    _filterFoodDiabetesType == 'All' ? 'No foods yet' : 'No foods found for $_filterFoodDiabetesType Diabetes',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
                   )),
                 );
@@ -928,21 +862,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     elevation: 2,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => AdminFoodDetailScreen(foodId: doc.id))),
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => AdminFoodDetailScreen(foodId: doc.id))),
                       leading: imageUrl.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                imageUrl,
-                                width: 56,
-                                height: 56,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    const Icon(Icons.fastfood, color: Colors.green, size: 40),
-                              ))
+                          ? ClipRRect(borderRadius: BorderRadius.circular(8),
+                              child: Image.network(imageUrl, width: 56, height: 56, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, color: Colors.green, size: 40)))
                           : const Icon(Icons.fastfood, color: Colors.green, size: 40),
                       title: Text(data['name'] ?? 'Unnamed',
                           style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -967,19 +892,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ─── STATS CARDS ──────────────────────────────────────────────
           const Text('📊 Dashboard Overview',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green)),
           const SizedBox(height: 20),
-
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .where('role', isEqualTo: 'user')
-                .snapshots(),
+            stream: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'user').snapshots(),
             builder: (context, userSnap) {
               if (!userSnap.hasData) return const Center(child: CircularProgressIndicator());
-
               final users = userSnap.data!.docs;
               final now = DateTime.now();
               final today = DateTime(now.year, now.month, now.day);
@@ -989,14 +908,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 final lastLogin = data['lastLogin'];
                 if (lastLogin != null) {
                   final loginDate = (lastLogin as Timestamp).toDate();
-                  if (loginDate.year == today.year &&
-                      loginDate.month == today.month &&
-                      loginDate.day == today.day) {
-                    activeToday++;
-                  }
+                  if (loginDate.year == today.year && loginDate.month == today.month && loginDate.day == today.day) activeToday++;
                 }
               }
-
               return StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance.collectionGroup('foodLogs').snapshots(),
                 builder: (context, logSnap) {
@@ -1004,174 +918,116 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     stream: FirebaseFirestore.instance.collection('food_rules').snapshots(),
                     builder: (context, foodSnap) {
                       final userCount = userSnap.hasData ? userSnap.data!.docs.length : 0;
-                      final logCount = logSnap.hasData ? logSnap.data!.docs.length : 0;
+                      final logCount  = logSnap.hasData  ? logSnap.data!.docs.length  : 0;
                       final foodCount = foodSnap.hasData ? foodSnap.data!.docs.length : 0;
-
-                      return Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          _statCard('Total Users', '$userCount', Icons.people, Colors.blue),
-                          _statCard('Food Logs', '$logCount', Icons.restaurant, Colors.orange),
-                          _statCard('Food Items', '$foodCount', Icons.fastfood, Colors.green),
-                          _statCard('Active Today', '$activeToday', Icons.trending_up, Colors.purple),
-                        ],
-                      );
+                      return Wrap(spacing: 12, runSpacing: 12, children: [
+                        _statCard('Total Users',  '$userCount',   Icons.people,      Colors.blue),
+                        _statCard('Food Logs',    '$logCount',    Icons.restaurant,  Colors.orange),
+                        _statCard('Food Items',   '$foodCount',   Icons.fastfood,    Colors.green),
+                        _statCard('Active Today', '$activeToday', Icons.trending_up, Colors.purple),
+                      ]);
                     },
                   );
                 },
               );
             },
           ),
-
           const SizedBox(height: 30),
-
-          // ─── USERS BY DIABETES TYPE ───────────────────────────────────
-          const Text('📈 Users by Diabetes Type',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text('📈 Users by Diabetes Type', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .where('role', isEqualTo: 'user')
-                .snapshots(),
+            stream: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'user').snapshots(),
             builder: (context, snap) {
               if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-
               final users = snap.data!.docs;
               int mild = 0, moderate = 0, severe = 0, notSpecified = 0;
-
               for (var user in users) {
                 final type = (user.data() as Map<String, dynamic>)['diabetesType'] ?? 'Not specified';
-                if (type == 'Mild')
-                  mild++;
-                else if (type == 'Moderate')
-                  moderate++;
-                else if (type == 'Severe')
-                  severe++;
-                else
-                  notSpecified++;
+                if (type == 'Mild') mild++;
+                else if (type == 'Moderate') moderate++;
+                else if (type == 'Severe') severe++;
+                else notSpecified++;
               }
-
-              return Column(
-                children: [
-                  Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          _diabetesTypeRow('Mild', mild, Colors.green),
-                          const Divider(),
-                          _diabetesTypeRow('Moderate', moderate, Colors.orange),
-                          const Divider(),
-                          _diabetesTypeRow('Severe', severe, Colors.red),
-                          if (notSpecified > 0) ...[
-                            const Divider(),
-                            _diabetesTypeRow('Not Specified', notSpecified, Colors.grey),
-                          ],
-                        ],
-                      ),
-                    ),
+              return Column(children: [
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(children: [
+                      _diabetesTypeRow('Mild', mild, Colors.green),
+                      const Divider(),
+                      _diabetesTypeRow('Moderate', moderate, Colors.orange),
+                      const Divider(),
+                      _diabetesTypeRow('Severe', severe, Colors.red),
+                      if (notSpecified > 0) ...[
+                        const Divider(),
+                        _diabetesTypeRow('Not Specified', notSpecified, Colors.grey),
+                      ],
+                    ]),
                   ),
-                  const SizedBox(height: 20),
-                  _buildDiabetesBarChart(mild, moderate, severe, notSpecified),
-                ],
-              );
+                ),
+                const SizedBox(height: 20),
+                _buildDiabetesBarChart(mild, moderate, severe, notSpecified),
+              ]);
             },
           ),
-
           const SizedBox(height: 30),
-
-          // ─── FOOD DATABASE STATISTICS ─────────────────────────────────
-          const Text('🍎 Food Database Statistics',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text('🍎 Food Database Statistics', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('food_rules').snapshots(),
             builder: (context, snap) {
               if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-
               final foods = snap.data!.docs;
               int doCount = 0, dontCount = 0;
-
               for (var food in foods) {
                 final category = (food.data() as Map<String, dynamic>)['category'];
-                if (category == 'Do')
-                  doCount++;
-                else if (category == "Don't")
-                  dontCount++;
+                if (category == 'Do') doCount++;
+                else if (category == "Don't") dontCount++;
               }
-
               return Card(
                 elevation: 4,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _miniStatCard('✅ Recommended', '$doCount', Colors.green),
-                          _miniStatCard('🚫 To Avoid', '$dontCount', Colors.red),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      LinearProgressIndicator(
-                        value: foods.isNotEmpty ? doCount / foods.length : 0,
-                        backgroundColor: Colors.red.shade100,
-                        valueColor: const AlwaysStoppedAnimation(Colors.green),
-                        minHeight: 8,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${foods.isNotEmpty ? ((doCount / foods.length) * 100).toStringAsFixed(1) : 0}% foods are recommended for diabetics',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ],
-                  ),
+                  child: Column(children: [
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                      _miniStatCard('✅ Recommended', '$doCount', Colors.green),
+                      _miniStatCard('🚫 To Avoid', '$dontCount', Colors.red),
+                    ]),
+                    const SizedBox(height: 16),
+                    LinearProgressIndicator(
+                      value: foods.isNotEmpty ? doCount / foods.length : 0,
+                      backgroundColor: Colors.red.shade100,
+                      valueColor: const AlwaysStoppedAnimation(Colors.green),
+                      minHeight: 8,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${foods.isNotEmpty ? ((doCount / foods.length) * 100).toStringAsFixed(1) : 0}% foods are recommended for diabetics',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ]),
                 ),
               );
             },
           ),
-
           const SizedBox(height: 30),
-
-          // ─── RECENT USER ACTIVITY ─────────────────────────────────────
-          const Text('🕒 Recent User Activity',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text('🕒 Recent User Activity', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collectionGroup('foodLogs')
-                .orderBy('timestamp', descending: true)
-                .limit(5)
-                .snapshots(),
+            stream: FirebaseFirestore.instance.collectionGroup('foodLogs').orderBy('timestamp', descending: true).limit(5).snapshots(),
             builder: (context, snap) {
-              if (!snap.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
+              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final logs = snap.data!.docs;
               if (logs.isEmpty) {
                 return Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: const Center(
-                    child: Text('No recent activity', style: TextStyle(color: Colors.grey)),
-                  ),
+                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+                  child: const Center(child: Text('No recent activity', style: TextStyle(color: Colors.grey))),
                 );
               }
-
               return Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1184,29 +1040,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       final foodName = logData['foodName'] ?? 'Unknown food';
                       final timestamp = (logData['timestamp'] as Timestamp?)?.toDate();
                       final timeAgo = timestamp != null ? _formatTimeAgo(timestamp) : 'Unknown time';
-
-                      // Get user info from parent document
                       final userId = logDoc.reference.parent.parent?.id;
                       return FutureBuilder<DocumentSnapshot>(
-                        future: userId != null
-                            ? FirebaseFirestore.instance.collection('users').doc(userId).get()
-                            : Future.value(null),
+                        future: userId != null ? FirebaseFirestore.instance.collection('users').doc(userId).get() : Future.value(null),
                         builder: (context, userSnap) {
                           String userName = 'Unknown User';
                           if (userSnap.hasData && userSnap.data != null) {
                             final userData = userSnap.data!.data() as Map<String, dynamic>?;
-                            userName = userData?['displayName'] ??
-                                userData?['name'] ??
-                                userData?['email'] ??
-                                'Unknown User';
+                            userName = userData?['displayName'] ?? userData?['name'] ?? userData?['email'] ?? 'Unknown User';
                           }
-                          return _buildActivityItem(
-                            icon: Icons.restaurant,
-                            userName: userName,
-                            action: 'logged food: $foodName',
-                            timeAgo: timeAgo,
-                            iconColor: Colors.orange,
-                          );
+                          return _buildActivityItem(icon: Icons.restaurant, userName: userName, action: 'logged food: $foodName', timeAgo: timeAgo, iconColor: Colors.orange);
                         },
                       );
                     }).toList(),
@@ -1215,28 +1058,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
               );
             },
           ),
-
           const SizedBox(height: 30),
-
-          // ─── SYSTEM HEALTH ────────────────────────────────────────────
-          const Text('⚙️ System Health',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text('⚙️ System Health', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-
           Card(
             elevation: 4,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _systemHealthRow('Database Status', 'Connected', Icons.check_circle, Colors.green),
-                  const Divider(),
-                  _systemHealthRow('Storage Status', 'Active', Icons.cloud_done, Colors.blue),
-                  const Divider(),
-                  _systemHealthRow('Last Backup', 'Today', Icons.backup, Colors.orange),
-                ],
-              ),
+              child: Column(children: [
+                _systemHealthRow('Database Status', 'Connected', Icons.check_circle, Colors.green),
+                const Divider(),
+                _systemHealthRow('Storage Status', 'Active', Icons.cloud_done, Colors.blue),
+                const Divider(),
+                _systemHealthRow('Last Backup', 'Today', Icons.backup, Colors.orange),
+              ]),
             ),
           ),
         ],
@@ -1254,10 +1090,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
             decoration: InputDecoration(
               hintText: 'Search users by name or email...',
               prefixIcon: const Icon(Icons.search, color: Colors.green),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+              filled: true, fillColor: Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
             ),
           ),
           const SizedBox(height: 16),
@@ -1267,44 +1101,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Padding(
                 padding: const EdgeInsets.only(left: 16.0),
                 child: SizedBox(
-                  width: 200, // Minimized width
+                  width: 200,
                   child: DropdownButtonFormField<String>(
                     value: _selectedUserDiabetesType,
                     decoration: InputDecoration(
                       labelText: 'Filter',
-                      labelStyle:
-                          const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                      filled: true,
-                      fillColor: Colors.white,
+                      labelStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                      filled: true, fillColor: Colors.white,
                       prefixIcon: const Icon(Icons.filter_list, color: Colors.green, size: 20),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.green)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.green, width: 1)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: Colors.green, width: 2)),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green, width: 1)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green, width: 2)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'All',
-                          child: Text('📋 All', style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(
-                          value: 'Mild',
-                          child: Text('🟢 Mild', style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(
-                          value: 'Moderate',
-                          child: Text('🟡 Moderate', style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(
-                          value: 'Severe',
-                          child: Text('🔴 Severe', style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(
-                          value: 'Not Specified',
-                          child: Text('❓ Not Specified', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'All',          child: Text('📋 All',           style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Mild',         child: Text('🟢 Mild',          style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Moderate',     child: Text('🟡 Moderate',      style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Severe',       child: Text('🔴 Severe',        style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Not Specified',child: Text('❓ Not Specified', style: TextStyle(fontSize: 12))),
                     ],
                     onChanged: (val) => setState(() => _selectedUserDiabetesType = val!),
                   ),
@@ -1316,16 +1131,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
       Expanded(
         child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .where('role', isEqualTo: 'user')
-              .snapshots(),
+          stream: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'user').snapshots(),
           builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting)
-              return const Center(child: CircularProgressIndicator());
+            if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
             if (snap.hasError) return Center(child: Text("Error: ${snap.error}"));
-            if (!snap.hasData || snap.data!.docs.isEmpty)
-              return const Center(child: Text("No users found"));
+            if (!snap.hasData || snap.data!.docs.isEmpty) return const Center(child: Text("No users found"));
 
             var docs = snap.data!.docs;
             if (_selectedUserDiabetesType != 'All') {
@@ -1347,12 +1157,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
               padding: const EdgeInsets.symmetric(vertical: 10),
               itemCount: docs.length,
               itemBuilder: (context, i) {
-                final doc = docs[i];
+                final doc  = docs[i];
                 final data = doc.data() as Map<String, dynamic>;
-                final name = data['name'] ?? 'No Name';
-                final email = data['email'] ?? 'No Email';
+                final name         = data['name']         ?? 'No Name';
+                final email        = data['email']        ?? 'No Email';
                 final diabetesType = data['diabetesType'] ?? 'Not specified';
-                final age = data['age'] ?? 'N/A';
+                final age          = data['age']          ?? 'N/A';
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   elevation: 3,
@@ -1360,11 +1170,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   child: ListTile(
                     leading: CircleAvatar(
                       backgroundColor: Colors.green.shade100,
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : '?',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.green, fontSize: 20),
-                      ),
+                      child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 20)),
                     ),
                     title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Column(
@@ -1372,71 +1179,34 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       children: [
                         Text(email, maxLines: 1, overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.monitor_heart, size: 14, color: Colors.red),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                "Type: $diabetesType",
-                                style: TextStyle(
-                                    color: diabetesType == 'Not specified'
-                                        ? Colors.red
-                                        : Colors.black,
-                                    fontWeight: FontWeight.w600),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.cake, size: 14, color: Colors.grey),
-                            const SizedBox(width: 4),
-                            Text("Age: $age"),
-                          ],
-                        ),
+                        Row(children: [
+                          const Icon(Icons.monitor_heart, size: 14, color: Colors.red),
+                          const SizedBox(width: 4),
+                          Expanded(child: Text("Type: $diabetesType",
+                              style: TextStyle(color: diabetesType == 'Not specified' ? Colors.red : Colors.black, fontWeight: FontWeight.w600),
+                              maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.cake, size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text("Age: $age"),
+                        ]),
                       ],
                     ),
                     isThreeLine: true,
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'viewLogs') {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => UserFoodLogScreen(
-                                      userId: doc.id, userName: name)));
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => UserFoodLogScreen(userId: doc.id, userName: name)));
                         } else if (value == 'editUser') {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => EditUserScreen(
-                                      userId: doc.id, userData: data)));
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => EditUserScreen(userId: doc.id, userData: data)));
                         } else if (value == 'deleteUser') {
                           _deleteUser(doc.id, email);
                         }
                       },
                       itemBuilder: (ctx) => const [
-                        PopupMenuItem(
-                            value: 'viewLogs',
-                            child: Row(children: [
-                              Icon(Icons.restaurant, size: 18, color: Colors.blue),
-                              SizedBox(width: 8),
-                              Text('View Food Logs')
-                            ])),
-                        PopupMenuItem(
-                            value: 'editUser',
-                            child: Row(children: [
-                              Icon(Icons.edit, size: 18, color: Colors.orange),
-                              SizedBox(width: 8),
-                              Text('Edit User')
-                            ])),
-                        PopupMenuItem(
-                            value: 'deleteUser',
-                            child: Row(children: [
-                              Icon(Icons.delete, size: 18, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text('Delete User')
-                            ])),
+                        PopupMenuItem(value: 'viewLogs',   child: Row(children: [Icon(Icons.restaurant, size: 18, color: Colors.blue),   SizedBox(width: 8), Text('View Food Logs')])),
+                        PopupMenuItem(value: 'editUser',   child: Row(children: [Icon(Icons.edit,       size: 18, color: Colors.orange), SizedBox(width: 8), Text('Edit User')])),
+                        PopupMenuItem(value: 'deleteUser', child: Row(children: [Icon(Icons.delete,     size: 18, color: Colors.red),    SizedBox(width: 8), Text('Delete User')])),
                       ],
                     ),
                   ),
@@ -1466,9 +1236,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           centerTitle: true,
           backgroundColor: Colors.green,
           automaticallyImplyLeading: false,
-          actions: [
-            IconButton(icon: const Icon(Icons.logout), onPressed: () => _confirmLogout(context))
-          ],
+          actions: [IconButton(icon: const Icon(Icons.logout), onPressed: () => _confirmLogout(context))],
         ),
         body: pages[_selectedIndex],
         bottomNavigationBar: BottomNavigationBar(
@@ -1478,10 +1246,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
           type: BottomNavigationBarType.fixed,
           onTap: (i) => setState(() => _selectedIndex = i),
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
-            BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Users'),
+            BottomNavigationBarItem(icon: Icon(Icons.dashboard),       label: 'Dashboard'),
+            BottomNavigationBarItem(icon: Icon(Icons.group),           label: 'Users'),
             BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), label: 'Food Data'),
-            BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Reports'),
+            BottomNavigationBarItem(icon: Icon(Icons.bar_chart),       label: 'Reports'),
           ],
         ),
         backgroundColor: Colors.green.shade50,
@@ -1492,219 +1260,109 @@ class _AdminDashboardState extends State<AdminDashboard> {
   String _formatTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-    if (difference.inDays > 0)
-      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
-    if (difference.inHours > 0)
-      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
-    if (difference.inMinutes > 0)
-      return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    if (difference.inDays > 0)    return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    if (difference.inHours > 0)   return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    if (difference.inMinutes > 0) return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
     return 'Just now';
   }
 
-  Widget _buildActivityItem({
-    required IconData icon,
-    required String userName,
-    required String action,
-    required String timeAgo,
-    required Color iconColor,
-  }) {
+  Widget _buildActivityItem({required IconData icon, required String userName, required String action, required String timeAgo, required Color iconColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(children: [
-        Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: iconColor, size: 20)),
+        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: iconColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Icon(icon, color: iconColor, size: 20)),
         const SizedBox(width: 12),
-        Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(userName,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  Text(action,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                ])),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(userName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          Text(action, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        ])),
         Text(timeAgo, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
       ]),
     );
   }
 
-  // Helper methods for dashboard
   Widget _diabetesTypeRow(String type, int count, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              type,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            ),
-          ),
-          Text(
-            '$count users',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
-      ),
+      child: Row(children: [
+        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 12),
+        Expanded(child: Text(type, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500))),
+        Text('$count users', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+      ]),
     );
   }
 
   Widget _buildDiabetesBarChart(int mild, int moderate, int severe, int notSpecified) {
     final total = mild + moderate + severe + notSpecified;
     if (total == 0) return const SizedBox();
-
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Distribution Chart',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _buildBar('Mild', mild, total, Colors.green),
-            const SizedBox(height: 8),
-            _buildBar('Moderate', moderate, total, Colors.orange),
-            const SizedBox(height: 8),
-            _buildBar('Severe', severe, total, Colors.red),
-            if (notSpecified > 0) ...[
-              const SizedBox(height: 8),
-              _buildBar('Not Specified', notSpecified, total, Colors.grey),
-            ],
-          ],
-        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Distribution Chart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          _buildBar('Mild', mild, total, Colors.green),
+          const SizedBox(height: 8),
+          _buildBar('Moderate', moderate, total, Colors.orange),
+          const SizedBox(height: 8),
+          _buildBar('Severe', severe, total, Colors.red),
+          if (notSpecified > 0) ...[const SizedBox(height: 8), _buildBar('Not Specified', notSpecified, total, Colors.grey)],
+        ]),
       ),
     );
   }
 
   Widget _buildBar(String label, int count, int total, Color color) {
     final percentage = total > 0 ? (count / total) : 0.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 12)),
-            Text('$count (${(percentage * 100).toStringAsFixed(0)}%)',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: percentage,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation(color),
-            minHeight: 12,
-          ),
-        ),
-      ],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(label, style: const TextStyle(fontSize: 12)),
+        Text('$count (${(percentage * 100).toStringAsFixed(0)}%)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      ]),
+      const SizedBox(height: 4),
+      ClipRRect(borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(value: percentage, backgroundColor: Colors.grey.shade200, valueColor: AlwaysStoppedAnimation(color), minHeight: 12)),
+    ]);
   }
 
   Widget _miniStatCard(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withOpacity(0.3))),
+      child: Column(children: [
+        Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
+      ]),
     );
   }
 
   Widget _systemHealthRow(String label, String status, IconData icon, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withOpacity(0.3)),
-            ),
-            child: Text(
-              status,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: Row(children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(width: 12),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(0.3))),
+          child: Text(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+        ),
+      ]),
     );
   }
 
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-
-    if (difference.inDays > 7) {
-      return '${(difference.inDays / 7).floor()}w ago';
-    } else if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'Just now';
-    }
+    if (difference.inDays > 7)    return '${(difference.inDays / 7).floor()}w ago';
+    else if (difference.inDays > 0)    return '${difference.inDays}d ago';
+    else if (difference.inHours > 0)   return '${difference.inHours}h ago';
+    else if (difference.inMinutes > 0) return '${difference.inMinutes}m ago';
+    else return 'Just now';
   }
 }

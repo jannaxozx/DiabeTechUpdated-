@@ -207,6 +207,12 @@ class _AdminFoodDetailScreenState extends State<AdminFoodDetailScreen> {
                         Icons.water_drop,
                         Colors.yellow.shade700,
                       ),
+                      _detailCard(
+                        'Sugar',
+                        '${data['sugar'] ?? 0} g',
+                        Icons.cake,
+                        Colors.purple,
+                      ),
 
                       const SizedBox(height: 20),
 
