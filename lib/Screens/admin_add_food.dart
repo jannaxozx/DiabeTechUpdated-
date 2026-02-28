@@ -142,22 +142,13 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: _portionSizeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Portion Size (e.g., 1 cup, 100g)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
-                            controller: _caloriesController,
-                            keyboardType: TextInputType.number,
+                            controller: _portionSizeController,
                             decoration: const InputDecoration(
-                              labelText: 'Calories',
+                              labelText: 'Portion Size (e.g., 1 cup, 100g)',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -180,6 +171,17 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       children: [
                         Expanded(
                           child: TextField(
+                            controller: _caloriesController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Calories',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
                             controller: _proteinController,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
@@ -188,7 +190,11 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
                         Expanded(
                           child: TextField(
                             controller: _fatController,
@@ -199,16 +205,18 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _sugarController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Sugar (g)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
                       ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _sugarController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Sugar (g)',
-                        border: OutlineInputBorder(),
-                      ),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(

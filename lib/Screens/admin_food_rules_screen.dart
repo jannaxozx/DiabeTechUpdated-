@@ -213,24 +213,16 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Portion size
-                    TextField(
-                      controller: _portionSizeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Portion Size (e.g. 1 cup, 100g)',
-                        prefixIcon: Icon(Icons.scale, color: Color(0xFF2C6E49)),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Calories + Carbs
+                    // Portion Size + Carbs
                     Row(children: [
                       Expanded(
                         child: TextField(
-                          controller: _caloriesController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Calories', border: OutlineInputBorder()),
+                          controller: _portionSizeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Portion Size (e.g. 1 cup, 100g)',
+                            prefixIcon: Icon(Icons.scale, color: Color(0xFF2C6E49)),
+                            border: OutlineInputBorder(),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -244,8 +236,16 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                     ]),
                     const SizedBox(height: 10),
 
-                    // Protein + Fat + Sugar
+                    // Calories + Protein
                     Row(children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _caloriesController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Calories', border: OutlineInputBorder()),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: TextField(
                           controller: _proteinController,
@@ -253,7 +253,11 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                           decoration: const InputDecoration(labelText: 'Protein (g)', border: OutlineInputBorder()),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                    ]),
+                    const SizedBox(height: 10),
+
+                    // Fat + Sugar
+                    Row(children: [
                       Expanded(
                         child: TextField(
                           controller: _fatController,

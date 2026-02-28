@@ -598,6 +598,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return {nameLower, ...nameWords}.toList();
   }
 
+  Widget _foodFieldFullWidth(IconData icon, String hint, TextEditingController controller,
+      {bool isNumber = false}) {
+    return SizedBox(
+      width: double.infinity,
+      child: TextField(
+        enabled: !_isUploading,
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: _isUploading ? Colors.grey : Colors.green),
+          hintText: hint,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+          filled: true,
+          fillColor: _isUploading ? Colors.grey.shade100 : Colors.white,
+        ),
+      ),
+    );
+  }
+
   Widget _foodField(IconData icon, String hint, TextEditingController controller,
       {bool isNumber = false}) {
     return SizedBox(
@@ -725,16 +744,40 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
           const SizedBox(height: 14),
 
-          Wrap(
-            spacing: 10, runSpacing: 10,
+          Column(
             children: [
-              _foodField(Icons.restaurant, 'Food Name*', nameController),
-              _foodField(Icons.scale, 'Portion Size*', portionController),
-              _foodField(Icons.local_fire_department, 'Calories', caloriesController, isNumber: true),
-              _foodField(Icons.bubble_chart, 'Carbs (g)', carbsController, isNumber: true),
-              _foodField(Icons.fitness_center, 'Protein (g)', proteinController, isNumber: true),
-              _foodField(Icons.opacity, 'Fat (g)', fatController, isNumber: true),
-              _foodField(Icons.water_drop, 'Sugar (g)', sugarController, isNumber: true), // ADDED
+              // Food Name (full width)
+              _foodFieldFullWidth(Icons.restaurant, 'Food Name*', nameController),
+              const SizedBox(height: 10),
+              
+              // Portion Size | Carbs (side by side)
+              Row(
+                children: [
+                  Expanded(child: _foodField(Icons.scale, 'Portion Size*', portionController)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _foodField(Icons.bubble_chart, 'Carbs (g)', carbsController, isNumber: true)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              
+              // Calories | Protein (side by side)
+              Row(
+                children: [
+                  Expanded(child: _foodField(Icons.local_fire_department, 'Calories', caloriesController, isNumber: true)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _foodField(Icons.fitness_center, 'Protein (g)', proteinController, isNumber: true)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              
+              // Fat | Sugar (side by side)
+              Row(
+                children: [
+                  Expanded(child: _foodField(Icons.opacity, 'Fat (g)', fatController, isNumber: true)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _foodField(Icons.water_drop, 'Sugar (g)', sugarController, isNumber: true)),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 10),
