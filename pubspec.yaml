@@ -34,7 +34,7 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.8
 
-  # ML Kit
+  # ML Kit (kept for other screens)
   google_mlkit_image_labeling: ^0.14.1
   google_mlkit_text_recognition: ^0.15.0
   google_mlkit_object_detection: ^0.15.0
@@ -42,6 +42,9 @@ dependencies:
   # Image Picker
   image_picker: ^1.0.0
   file_picker: ^8.0.0
+
+  # HTTP - needed for Claude AI Vision API in food scanner
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:

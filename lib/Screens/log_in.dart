@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'register.dart';
 import 'ForgotPasswordScreen.dart';
@@ -21,7 +20,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _obscureText = true;
   bool _isLoading = false;
+  bool _rememberMe = false;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRemembered();
+  }
 
   // ---------------- Email Login ----------------
   Future<void> _loginUser() async {
@@ -56,6 +62,9 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(content: Text("Login Successful as $role")),
       );
 
+      // Save remember me preference after successful login
+      await _saveRemembered();
+
       // Navigate based on role
       if (role == "admin") {
         Navigator.pushReplacement(
@@ -77,232 +86,30 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ---------------- Facebook Sign-In ----------------
-  Future<void> _signInWithFacebook() async {
-    try {
-      setState(() => _isLoading = true);
-
-      // Check if Facebook is available
-      final isAvailable = await FacebookAuth.instance.isWebSdkInitialized;
-      if (!isAvailable && !kIsWeb) {
-        // Try to initialize on mobile
-        try {
-          await FacebookAuth.instance.webAndDesktopInitialize(
-            appId: "2958808434459170", // Facebook App ID
-            cookie: true,
-            xfbml: true,
-            version: "v18.0",
-          );
-        } catch (e) {
-          debugPrint("Facebook initialization error: $e");
-        }
-      }
-
-      // Use native flow on mobile to avoid insecure web login blocks
-      final LoginResult result = await FacebookAuth.instance.login(
-        permissions: ['email', 'public_profile'],
-        loginBehavior: kIsWeb
-            ? LoginBehavior.webOnly // requires https in browser
-            : LoginBehavior.nativeWithFallback,
-      );
-
-      if (result.status == LoginStatus.success) {
-        final AccessToken accessToken = result.accessToken!;
-
-        final facebookAuthCredential =
-            FacebookAuthProvider.credential(accessToken.tokenString);
-        final userCredential =
-            await FirebaseAuth.instance.signInWithCredential(facebookAuthCredential);
-        final user = userCredential.user;
-
-        if (user != null) {
-          // Try to enrich user data from Facebook
-          Map<String, dynamic>? fbData;
-          try {
-            fbData = await FacebookAuth.instance.getUserData(
-              fields: "email,name,picture.width(200).height(200),first_name,last_name",
-            );
-          } catch (e) {
-            debugPrint("Error getting Facebook user data: $e");
-          }
-
-          final userRef =
-              FirebaseFirestore.instance.collection("users").doc(user.uid);
-          var userDoc = await userRef.get();
-
-          if (!userDoc.exists) {
-            // Create new user account
-            await userRef.set({
-              "email": user.email ?? fbData?['email'] ?? "",
-              "displayName": fbData?['name'] ?? user.displayName ?? "",
-              "name": fbData?['name'] ?? user.displayName ?? "",
-              "firstName": fbData?['first_name'] ?? "",
-              "lastName": fbData?['last_name'] ?? "",
-              "photoUrl": (fbData?['picture']?['data']?['url'] as String?) ?? user.photoURL ?? "",
-              "photoURL": (fbData?['picture']?['data']?['url'] as String?) ?? user.photoURL ?? "",
-              "role": "user",
-              "provider": "facebook",
-              "createdAt": Timestamp.now(),
-              "lastLogin": Timestamp.now(),
-            });
-            
-            _showSuccessToast("Account created successfully via Facebook!");
-          } else {
-            // Update last login for existing user
-            await userRef.update({
-              "lastLogin": Timestamp.now(),
-            });
-          }
-          
-          // Re-read after creation/update to get fresh data
-          userDoc = await userRef.get();
-
-          final role =
-              (userDoc.data()?['role'] ?? 'user').toString().toLowerCase();
-
-          _showSuccessToast("Signed in as $role via Facebook");
-
-          if (!mounted) return;
-          if (role == "admin") {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const AdminDashboard()),
-              (route) => false,
-            );
-          } else {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const Dashboard()),
-              (route) => false,
-            );
-          }
-        }
-      } else if (result.status == LoginStatus.cancelled) {
-        _showInfoToast("Facebook login cancelled");
-      } else {
-        _showErrorToast("Facebook login failed: ${result.message ?? 'Unknown error'}");
-      }
-    } catch (e) {
-      debugPrint("Facebook login error: $e");
-      if (e is FirebaseAuthException &&
-          e.code == 'account-exists-with-different-credential') {
-        final pendingEmail = e.email;
-        final methods = pendingEmail != null
-            ? await FirebaseAuth.instance.fetchSignInMethodsForEmail(pendingEmail)
-            : <String>[];
-        final hint = methods.isNotEmpty ? 'Use ${methods.first} to sign in.' : 'Try another method.';
-        _showErrorToast('Account exists with different sign-in method. $hint');
-      } else if (e.toString().contains('Facebook app is not configured')) {
-        _showErrorToast('Facebook login not configured. Please use email or try again later.');
-      } else {
-        _showErrorToast("Error during Facebook login: ${e.toString()}");
-      }
-    } finally {
-      setState(() => _isLoading = false);
+  // ---------------- Remember me helpers ----------------
+  Future<void> _loadRemembered() async {
+    final prefs = await SharedPreferences.getInstance();
+    final remembered = prefs.getBool('rememberMe') ?? false;
+    if (remembered) {
+      setState(() {
+        _rememberMe = true;
+        _emailController.text = prefs.getString('savedEmail') ?? '';
+        _passwordController.text = prefs.getString('savedPassword') ?? '';
+      });
     }
   }
 
-  void _showSuccessToast(String message) {
-    _showToast(message, const Color(0xFF2E7D32));
-  }
-
-  void _showErrorToast(String message) {
-    _showToast(message, const Color(0xFFB00020));
-  }
-
-  void _showInfoToast(String message) {
-    _showToast(message, const Color(0xFF1565C0));
-  }
-
-  void _showToast(String message, Color backgroundColor) {
-  final overlay = Overlay.of(context);
-    final OverlayEntry entry = OverlayEntry(
-      builder: (context) {
-        final size = MediaQuery.of(context).size;
-        return Positioned(
-          top: 20,
-          right: 20,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              constraints: BoxConstraints(maxWidth: size.width * 0.6),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 2)),
-                ],
-              ),
-              child: Text(
-                message,
-                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 2)).then((_) {
-      if (entry.mounted) entry.remove();
-    });
-  }
-
-  void _showFacebookLoginDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Continue with Facebook'),
-          content: const Text('A secure Facebook dialog will open to complete sign-in.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                _signInWithFacebook();
-              },
-              child: const Text('Continue'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ---------------- Facebook Button (polished UI) ----------------
-  Widget _buildFacebookButton() {
-    return InkWell(
-      onTap: _showFacebookLoginDialog,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        height: 50,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1877F2),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            SizedBox(
-              height: 24,
-              width: 24,
-              child: Image.asset("assets/images/Facebook1.png", fit: BoxFit.contain),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              "Continue with Facebook",
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _saveRemembered() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_rememberMe) {
+      await prefs.setBool('rememberMe', true);
+      await prefs.setString('savedEmail', _emailController.text.trim());
+      await prefs.setString('savedPassword', _passwordController.text);
+    } else {
+      await prefs.remove('rememberMe');
+      await prefs.remove('savedEmail');
+      await prefs.remove('savedPassword');
+    }
   }
 
   @override
@@ -372,10 +179,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                // Forgot Password
+                // Remember me checkbox and Forgot Password
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    // Left side - Remember Me
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
+                        child: CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: _rememberMe,
+                          onChanged: (val) =>
+                              setState(() => _rememberMe = val ?? false),
+                          title: const Text('Remember me'),
+                          controlAffinity: ListTileControlAffinity.leading,
+                        ),
+                      ),
+                    ),
+                    
+                    // Right side - Forgot Password
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 15),
                       child: InkWell(
@@ -392,12 +215,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: Colors.black),
+                              color: Color(0xFF2C6E49),
+                              decoration: TextDecoration.underline,
+                              decorationColor: Color(0xFF2C6E49),
+                              decorationThickness: 2.0,
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 10),
 
                 // Login button
                 Padding(
@@ -413,7 +241,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: Center(
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
                             : const Text(
                                 "LOGIN",
                                 style: TextStyle(
@@ -424,35 +253,38 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 30),
 
                 // Divider
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 30),
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
                   child: Row(
-                    children: const [
-                      Expanded(child: Divider(color: Colors.black, thickness: 2)),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 10),
-                        child: Text(
-                          "or continue with",
-                          style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600),
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          color: Colors.grey.shade300,
                         ),
                       ),
-                      Expanded(child: Divider(color: Colors.black, thickness: 2)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          "OR",
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          color: Colors.grey.shade300,
+                        ),
+                      ),
                     ],
                   ),
-                ),
-
-                const SizedBox(height: 15),
-
-                // Facebook Button (polished UI + modal)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: _buildFacebookButton(),
                 ),
 
                 const SizedBox(height: 20),
