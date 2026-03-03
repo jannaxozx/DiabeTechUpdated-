@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -179,6 +180,9 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
         _category       = 'unknown';
         _capturedImagePath = xFile.path; // Store the image path
       });
+      
+      debugPrint('📸 Image captured: ${xFile.path}');
+      debugPrint('📸 File exists: ${await File(xFile.path).exists()}');
 
       final knownFoods = _allFoodDocs
           .map((d) => (d['name'] ?? '').toString().trim())
@@ -187,12 +191,8 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
 
       final foodName = await _identifyWithGemini(xFile.path, knownFoods);
 
-      // Clean up temporary image file
-      try {
-        await File(xFile.path).delete();
-      } catch (e) {
-        debugPrint('Failed to delete temp image: $e');
-      }
+      // Don't delete the image yet - we need it for display
+      // It will be deleted when user taps "Scan Again"
 
       if (!mounted) return;
 
@@ -224,6 +224,10 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
         _isLoading  = false;
         _showResult = true;
       });
+      
+      debugPrint('📸 Showing result with image: $_capturedImagePath');
+      debugPrint('📸 _showResult: $_showResult');
+      debugPrint('📸 Image path is null: ${_capturedImagePath == null}');
     } catch (e) {
       debugPrint('Capture error: $e');
       _showError('Something went wrong: $e');
@@ -940,6 +944,15 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           ),
           const SizedBox(height: 14),
 
+          // DEBUG: Show image path status
+          if (kDebugMode)
+            Center(
+              child: Text(
+                'Image: ${_capturedImagePath != null ? "✓ ${_capturedImagePath!.split('/').last}" : "✗ null"}',
+                style: const TextStyle(color: Colors.yellow, fontSize: 10),
+              ),
+            ),
+
           // Captured food image
           if (_capturedImagePath != null)
             Center(
@@ -963,6 +976,15 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
                     width: 140,
                     height: 140,
                     fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      debugPrint('❌ Error loading image: $error');
+                      return Container(
+                        width: 140,
+                        height: 140,
+                        color: Colors.grey[800],
+                        child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                      );
+                    },
                   ),
                 ),
               ),
