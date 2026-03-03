@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:camera/camera.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
@@ -13,35 +14,103 @@ class FoodScannerScreen extends StatefulWidget {
   State<FoodScannerScreen> createState() => _FoodScannerScreenState();
 }
 
-class _FoodScannerScreenState extends State<FoodScannerScreen> {
-  File?   _capturedImage;
-  bool    _isLoading      = false;
-  String  _loadingMessage = '';
-  String  _detectedFood   = '';
+class _FoodScannerScreenState extends State<FoodScannerScreen>
+    with WidgetsBindingObserver {
+  CameraController? _cameraController;
+  bool _isCameraReady     = false;
+  bool _cameraPermDenied  = false;
+  bool _isLoading         = false;
+  bool _flashOn           = false;
+  bool _showResult        = false;
+  String _loadingMessage  = '';
+
+  String _detectedFood    = '';
   Map<String, dynamic>? _matchedFoodRule;
-  String  _category           = 'unknown';
-  String  _userDiabetesType   = '';
+  String _category        = 'unknown';
+  String _userDiabetesType = '';
   List<Map<String, dynamic>> _allFoodDocs = [];
 
-  final ImagePicker _picker = ImagePicker();
-
-  // ── Replace with your working Gemini API key ──────────────────────────
-  static const String _geminiApiKey = 'AIzaSyAxc-rFx1kj8QS5JPQjN1eOALnLbK8JhUE';
+  static const String _geminiApiKey = 'AIzaSyCYBd-lzRCBFbhSYw08AOOzbJWIomlfGB0';
   static const String _geminiModel  = 'gemini-1.5-flash';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUserData();
+    _requestCameraAndInit();
   }
 
-  // ── Load user type + all food rules at startup ────────────────────────
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _cameraController;
+    if (ctrl == null || !ctrl.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive) {
+      ctrl.dispose();
+      setState(() => _isCameraReady = false);
+    } else if (state == AppLifecycleState.resumed) {
+      _requestCameraAndInit();
+    }
+  }
+
+  // ── Request camera permission then init ───────────────────────────────
+  Future<void> _requestCameraAndInit() async {
+    final status = await Permission.camera.request();
+    if (status.isDenied || status.isPermanentlyDenied) {
+      setState(() => _cameraPermDenied = true);
+      return;
+    }
+    await _initCamera();
+  }
+
+  // ── Init live camera ──────────────────────────────────────────────────
+  Future<void> _initCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+
+      final back = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+
+      // Dispose any old controller first
+      await _cameraController?.dispose();
+
+      final ctrl = CameraController(
+        back,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
+      await ctrl.initialize();
+      await ctrl.setFlashMode(FlashMode.off);
+
+      if (!mounted) return;
+      setState(() {
+        _cameraController = ctrl;
+        _isCameraReady    = true;
+        _cameraPermDenied = false;
+      });
+    } catch (e) {
+      debugPrint('Camera init error: $e');
+    }
+  }
+
+  // ── Load user profile + food rules ───────────────────────────────────
   Future<void> _loadUserData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Load in parallel
       final results = await Future.wait([
         FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
         FirebaseFirestore.instance.collection('food_rules').get(),
@@ -50,101 +119,124 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
       final userDoc  = results[0] as DocumentSnapshot;
       final foodSnap = results[1] as QuerySnapshot;
 
-      if (mounted) {
-        setState(() {
-          _userDiabetesType = (userDoc.data() as Map?)?['diabetesType']?.toString() ?? '';
-          _allFoodDocs = foodSnap.docs
-              .map((d) => Map<String, dynamic>.from(d.data() as Map))
-              .toList();
-        });
-      }
-      debugPrint('Loaded ${_allFoodDocs.length} food rules, type: $_userDiabetesType');
+      if (!mounted) return;
+      setState(() {
+        _userDiabetesType = (userDoc.data() as Map?)?['diabetesType']?.toString() ?? '';
+        _allFoodDocs = foodSnap.docs
+            .map((d) => Map<String, dynamic>.from(d.data() as Map))
+            .toList();
+      });
+      debugPrint('Loaded ${_allFoodDocs.length} food rules');
     } catch (e) {
       debugPrint('Load user data error: $e');
     }
   }
 
-  // ── Main scan flow ────────────────────────────────────────────────────
-  Future<void> _scanImage() async {
+  // ── Toggle flash ──────────────────────────────────────────────────────
+  Future<void> _toggleFlash() async {
+    if (_cameraController == null || !_isCameraReady) return;
     try {
-      final picked = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 85,
-        maxWidth: 1024,
-      );
-      if (picked == null) return;
+      _flashOn = !_flashOn;
+      await _cameraController!
+          .setFlashMode(_flashOn ? FlashMode.torch : FlashMode.off);
+      setState(() {});
+    } catch (e) {
+      debugPrint('Flash error: $e');
+    }
+  }
+
+  // ── Capture and scan ──────────────────────────────────────────────────
+  Future<void> _captureAndScan() async {
+    final ctrl = _cameraController;
+    if (ctrl == null || !_isCameraReady || _isLoading) return;
+
+    try {
+      // Turn off torch briefly to avoid overexposure
+      if (_flashOn) await ctrl.setFlashMode(FlashMode.off);
+
+      final xFile = await ctrl.takePicture();
+
+      if (_flashOn) await ctrl.setFlashMode(FlashMode.torch);
 
       if (!mounted) return;
       setState(() {
-        _capturedImage   = File(picked.path);
-        _isLoading       = true;
-        _loadingMessage  = 'Identifying your food...';
-        _detectedFood    = '';
+        _isLoading      = true;
+        _loadingMessage = 'Identifying your food...';
+        _showResult     = false;
+        _detectedFood   = '';
         _matchedFoodRule = null;
-        _category        = 'unknown';
+        _category       = 'unknown';
       });
 
-      // Step 1 — Ask Gemini to identify the food
-      final foodName = await _identifyWithGemini(
-        picked.path,
-        _allFoodDocs.map((d) => (d['name'] ?? '').toString().trim()).where((n) => n.isNotEmpty).toList(),
-      );
+      final knownFoods = _allFoodDocs
+          .map((d) => (d['name'] ?? '').toString().trim())
+          .where((n) => n.isNotEmpty)
+          .toList();
+
+      final foodName = await _identifyWithGemini(xFile.path, knownFoods);
+
+      if (!mounted) return;
 
       if (foodName == null || foodName.trim().isEmpty) {
-        _showError('Could not identify the food in the photo.\n\nTips:\n• Fill the frame with the food\n• Use good lighting\n• Hold the camera steady');
+        setState(() => _isLoading = false);
+        _showError(
+          'Could not identify the food.\n\n'
+          'Tips:\n'
+          '• Point directly at the food\n'
+          '• Make sure food fills the scan frame\n'
+          '• Use better lighting or turn on flash\n'
+          '• Hold the phone steady',
+        );
         return;
       }
 
-      debugPrint('Gemini result: "$foodName"');
+      debugPrint('Identified: "$foodName"');
 
-      if (!mounted) return;
       setState(() {
         _detectedFood   = foodName.trim();
         _loadingMessage = 'Checking food database...';
       });
 
-      // Step 2 — Match against local food rules
       _matchFoodLocally(_detectedFood);
-
-      // Step 3 — Save to history
       await _saveHistory();
 
-      if (mounted) setState(() => _isLoading = false);
-
+      if (!mounted) return;
+      setState(() {
+        _isLoading  = false;
+        _showResult = true;
+      });
     } catch (e) {
-      debugPrint('Scan error: $e');
+      debugPrint('Capture error: $e');
       _showError('Something went wrong: $e');
     }
   }
 
-  // ── Gemini Vision API call ────────────────────────────────────────────
-  Future<String?> _identifyWithGemini(String imagePath, List<String> knownFoods) async {
+  // ── Gemini Vision API ─────────────────────────────────────────────────
+  Future<String?> _identifyWithGemini(
+      String imagePath, List<String> knownFoods) async {
     try {
-      final bytes  = await File(imagePath).readAsBytes();
-      final b64    = base64Encode(bytes);
+      final bytes = await File(imagePath).readAsBytes();
+      final b64   = base64Encode(bytes);
 
-      // Build hint string — send known food names so Gemini can match exactly
       final hint = knownFoods.isNotEmpty
-          ? '\n\nFOOD DATABASE (use exact name if food matches):\n${knownFoods.take(80).join(', ')}'
+          ? '\n\nFOOD DATABASE — if food matches any of these, return that EXACT name:\n${knownFoods.take(80).join(', ')}'
           : '';
 
       final prompt =
           'Identify the food in this image.\n'
           'Reply with ONLY this JSON — no extra text, no markdown:\n'
-          '{"food":"food name","confidence":"high"}\n'
+          '{"food":"food name here","confidence":"high"}\n'
           'Rules:\n'
           '- food name must be lowercase\n'
-          '- be specific (e.g. "white rice", "fried chicken", "ampalaya")\n'
+          '- be specific (e.g. "white rice", "ampalaya", "fried chicken")\n'
           '- if no food is visible reply: {"food":"","confidence":"none"}\n'
-          '- if the food matches something in the database list below, use that EXACT name'
+          '- if the food matches something in the database, use that EXACT name'
           '$hint';
 
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/'
+        'https://generativelanguage.googleapis.com/v1/models/'
         '$_geminiModel:generateContent?key=$_geminiApiKey',
       );
-
-      debugPrint('Calling Gemini...');
 
       final response = await http.post(
         url,
@@ -153,66 +245,49 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
           'contents': [
             {
               'parts': [
-                {
-                  'inline_data': {
-                    'mime_type': 'image/jpeg',
-                    'data': b64,
-                  }
-                },
+                {'inline_data': {'mime_type': 'image/jpeg', 'data': b64}},
                 {'text': prompt},
               ]
             }
           ],
           'generationConfig': {
             'maxOutputTokens': 100,
-            'temperature': 0.05,  // very low = more deterministic
+            'temperature': 0.05,
             'topP': 0.9,
             'topK': 5,
           },
-          'safetySettings': [
-            {'category': 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold': 'BLOCK_NONE'},
-          ],
         }),
       ).timeout(
         const Duration(seconds: 30),
-        onTimeout: () => throw Exception('Request timed out. Check your internet connection.'),
+        onTimeout: () =>
+            throw Exception('Request timed out. Check your internet.'),
       );
 
-      debugPrint('Gemini HTTP status: ${response.statusCode}');
+      debugPrint('Gemini status: ${response.statusCode}');
 
       if (response.statusCode != 200) {
-        // Parse the error message from Gemini
         try {
           final err = jsonDecode(response.body);
-          final msg = err['error']?['message'] ?? 'Unknown API error';
-          debugPrint('Gemini API error: $msg');
-          _showError('AI service error: $msg\n\nCheck your API key and try again.');
+          final msg = err['error']?['message'] ?? 'API error';
+          _showError('AI error: $msg\n\nCheck your API key.');
         } catch (_) {
-          _showError('AI service returned HTTP ${response.statusCode}.\nCheck your API key.');
+          _showError('AI service error ${response.statusCode}.');
         }
         return null;
       }
 
-      // Parse response body
-      final decoded  = jsonDecode(response.body) as Map<String, dynamic>;
-      final rawText  = _extractGeminiText(decoded);
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final text    = _geminiText(decoded);
+      debugPrint('Gemini text: "$text"');
 
-      debugPrint('Gemini raw text: "$rawText"');
-
-      if (rawText == null || rawText.trim().isEmpty) {
-        debugPrint('Empty Gemini response');
-        return null;
-      }
-
-      // Parse food name from the returned text
-      return _parseFoodName(rawText);
-
+      if (text == null || text.trim().isEmpty) return null;
+      return _parseFoodName(text);
     } catch (e) {
-      debugPrint('Gemini exception: $e');
+      debugPrint('Gemini error: $e');
       if (e.toString().contains('timed out')) {
-        _showError('Request timed out.\nCheck your internet and try again.');
+        _showError('Request timed out.\nCheck your internet connection.');
       } else if (e.toString().contains('SocketException')) {
-        _showError('No internet connection.\nPlease check your network.');
+        _showError('No internet connection.');
       } else {
         _showError('AI error: $e');
       }
@@ -220,124 +295,84 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
     }
   }
 
-  // ── Extract text from Gemini response safely ──────────────────────────
-  String? _extractGeminiText(Map<String, dynamic> decoded) {
+  String? _geminiText(Map<String, dynamic> d) {
     try {
-      final candidates = decoded['candidates'];
-      if (candidates == null || (candidates as List).isEmpty) return null;
-
-      final content = candidates[0]?['content'];
-      if (content == null) return null;
-
-      final parts = content['parts'];
-      if (parts == null || (parts as List).isEmpty) return null;
-
-      return parts[0]?['text']?.toString();
+      return (d['candidates'] as List?)
+          ?[0]?['content']?['parts']?[0]?['text']
+          ?.toString();
     } catch (_) {
       return null;
     }
   }
 
-  // ── Parse food name from Gemini text (JSON or plain) ──────────────────
   String? _parseFoodName(String raw) {
     final text = raw.trim();
-
-    // ── Try JSON extraction first ─────────────────────────────────────
+    // Try JSON
     try {
-      // Remove markdown code fences if present
-      String cleaned = text
+      final cleaned = text
           .replaceAll(RegExp(r'```json', caseSensitive: false), '')
           .replaceAll('```', '')
           .trim();
-
-      // Use dotAll regex to capture multi-line JSON objects
-      final jsonMatch = RegExp(r'\{.+?\}', dotAll: true).firstMatch(cleaned);
-      if (jsonMatch != null) {
-        final obj = jsonDecode(jsonMatch.group(0)!) as Map<String, dynamic>;
-        final food = (obj['food'] as String?)?.trim().toLowerCase() ?? '';
-        if (food.isNotEmpty) {
-          debugPrint('JSON parsed: "$food"');
-          return food;
-        }
-        // Explicit empty = no food detected
-        if (obj.containsKey('food') && food.isEmpty) return null;
-      }
-    } catch (e) {
-      debugPrint('JSON parse attempt failed: $e');
-    }
-
-    // ── Fallback: plain text heuristics ──────────────────────────────
-    final lower = text.toLowerCase();
-
-    // Detect "no food" responses
-    for (final phrase in [
-      'no food', 'not food', 'no visible food', 'cannot identify',
-      'unable to identify', 'not a food item', 'no food item',
-    ]) {
-      if (lower.contains(phrase)) {
-        debugPrint('No-food phrase detected: "$phrase"');
-        return null;
-      }
-    }
-
-    // Try common phrase patterns
-    final patterns = [
-      RegExp(r'"food"\s*:\s*"([^"]{2,40})"'),
-      RegExp(r'(?:is|shows?|contains?|identified as|appears? to be|food is)\s+(?:a |an |the )?([a-z][a-z\s\-]{1,35})', caseSensitive: false),
-      RegExp(r'(?:food|dish|item):\s*([a-z][a-z\s\-]{1,35})', caseSensitive: false),
-    ];
-
-    for (final p in patterns) {
-      final m = p.firstMatch(lower);
+      final m = RegExp(r'\{.+?\}', dotAll: true).firstMatch(cleaned);
       if (m != null) {
-        final food = m.group(1)?.trim().toLowerCase() ?? '';
-        if (food.length > 2) {
-          debugPrint('Pattern extracted: "$food"');
-          return food;
-        }
+        final obj  = jsonDecode(m.group(0)!) as Map<String, dynamic>;
+        final food = (obj['food'] as String?)?.trim().toLowerCase() ?? '';
+        if (food.isNotEmpty) return food;
+        if (obj.containsKey('food')) return null;
+      }
+    } catch (_) {}
+
+    // No-food phrases
+    final lower = text.toLowerCase();
+    for (final p in [
+      'no food', 'not food', 'cannot identify', 'unable to identify',
+      'no visible food', 'no food item',
+    ]) {
+      if (lower.contains(p)) return null;
+    }
+
+    // Pattern fallbacks
+    for (final r in [
+      RegExp(r'"food"\s*:\s*"([^"]{2,40})"'),
+      RegExp(r'(?:is|shows?|identified as|appears? to be)\s+(?:a |an |the )?([a-z][a-z\s\-]{1,35})',
+          caseSensitive: false),
+    ]) {
+      final m = r.firstMatch(lower);
+      if (m != null) {
+        final f = m.group(1)?.trim().toLowerCase() ?? '';
+        if (f.length > 2) return f;
       }
     }
 
-    // Last resort: if entire response is short and looks like a food name
+    // Raw text as last resort
     if (lower.length <= 40 && !lower.contains('{') && !lower.contains('\n')) {
-      final cleaned = lower.replaceAll(RegExp(r'[^a-z\s\-]'), '').trim();
-      if (cleaned.length > 2) {
-        debugPrint('Using raw text as food: "$cleaned"');
-        return cleaned;
-      }
+      final c = lower.replaceAll(RegExp(r'[^a-z\s\-]'), '').trim();
+      if (c.length > 2) return c;
     }
-
-    debugPrint('Could not extract food name from: "$raw"');
     return null;
   }
 
-  // ── Fuzzy match food name against local food_rules docs ───────────────
+  // ── Fuzzy match against Firestore food rules ──────────────────────────
   void _matchFoodLocally(String foodName) {
     final lower    = foodName.toLowerCase().trim();
     final variants = _buildVariants(lower);
 
-    debugPrint('Matching "$lower" — variants: $variants');
-
     Map<String, dynamic>? best;
-    String bestCat = 'unknown';
+    String bestCat   = 'unknown';
     int    bestScore = 0;
 
     for (final doc in _allFoodDocs) {
-      final name     = (doc['name']      ?? '').toString().toLowerCase().trim();
-      final nameLow  = (doc['nameLower'] ?? name).toString().toLowerCase().trim();
-      final type     = (doc['diabetesType'] ?? '').toString();
-      final cat      = (doc['category']  ?? '').toString();
-      final keywords = (doc['searchKeywords'] as List? ?? [])
+      final name    = (doc['name']      ?? '').toString().toLowerCase().trim();
+      final nameLow = (doc['nameLower'] ?? name).toString().toLowerCase().trim();
+      final type    = (doc['diabetesType'] ?? '').toString();
+      final cat     = (doc['category']  ?? '').toString();
+      final kws     = (doc['searchKeywords'] as List? ?? [])
           .map((e) => e.toString().toLowerCase())
           .toList();
 
-      int score = _computeScore(variants, name, nameLow, keywords);
+      int score = _computeScore(variants, name, nameLow, kws);
       if (score == 0) continue;
-
-      // Boost for matching diabetes type
       if (_userDiabetesType.isNotEmpty && type == _userDiabetesType) score += 30;
-
-      debugPrint('  "$name" → $score');
 
       if (score > bestScore) {
         bestScore = score;
@@ -346,7 +381,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
       }
     }
 
-    debugPrint('Best: "${best?['name']}" score=$bestScore');
+    debugPrint('Best match: "${best?['name']}" score=$bestScore');
 
     setState(() {
       if (best != null && bestScore >= 15) {
@@ -359,171 +394,141 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
     });
   }
 
-  int _computeScore(List<String> variants, String name, String nameLow, List<String> keywords) {
+  int _computeScore(
+      List<String> vs, String name, String nameLow, List<String> kws) {
     int best = 0;
-    for (final v in variants) {
+    for (final v in vs) {
       if (v.isEmpty) continue;
-
-      // Exact
       if (name == v || nameLow == v) return 100;
-
-      // Contains
       if (name.contains(v) || nameLow.contains(v)) best = _mx(best, 70);
       else if (v.contains(name) || v.contains(nameLow)) best = _mx(best, 65);
-
-      // Keywords
-      for (final kw in keywords) {
+      for (final kw in kws) {
         if (kw == v || kw.contains(v) || v.contains(kw)) {
           best = _mx(best, 60);
           break;
         }
       }
-
-      // Word overlap
       final vW = v.split(' ').where((w) => w.length > 2).toSet();
       final dW = name.split(' ').where((w) => w.length > 2).toSet();
-      final common = vW.intersection(dW).length;
-      if (common > 0) best = _mx(best, common * 22);
+      final c  = vW.intersection(dW).length;
+      if (c > 0) best = _mx(best, c * 22);
     }
     return best;
   }
 
   int _mx(int a, int b) => a > b ? a : b;
 
-  // ── Filipino / English food alias table ──────────────────────────────
   List<String> _buildVariants(String food) {
     final s = <String>{food};
     s.addAll(food.split(' ').where((w) => w.length > 2));
 
     const map = <String, List<String>>{
-      // Legumes
-      'mung beans':      ['monggo', 'mungo', 'munggo', 'mung bean'],
-      'monggo':          ['mung beans', 'mungo', 'munggo', 'mung bean'],
-      'mungo':           ['mung beans', 'monggo', 'munggo'],
-      'munggo':          ['mung beans', 'monggo', 'mungo'],
-      // Vegetables
-      'ampalaya':        ['bitter gourd', 'bitter melon', 'amargoso'],
-      'bitter gourd':    ['ampalaya', 'bitter melon'],
-      'bitter melon':    ['ampalaya', 'bitter gourd'],
-      'sitaw':           ['string beans', 'long beans', 'yard long beans'],
-      'string beans':    ['sitaw', 'long beans'],
-      'talong':          ['eggplant', 'aubergine'],
-      'eggplant':        ['talong'],
-      'kangkong':        ['water spinach', 'swamp cabbage'],
-      'water spinach':   ['kangkong'],
-      'kalabasa':        ['squash', 'pumpkin'],
-      'squash':          ['kalabasa', 'pumpkin'],
-      'pumpkin':         ['kalabasa', 'squash'],
-      'camote':          ['sweet potato', 'kamote', 'yam'],
-      'kamote':          ['sweet potato', 'camote', 'yam'],
-      'sweet potato':    ['camote', 'kamote'],
-      'gabi':            ['taro', 'taro root'],
-      'taro':            ['gabi'],
-      'pechay':          ['bok choy', 'pak choi', 'chinese cabbage'],
-      'bok choy':        ['pechay', 'pak choi'],
-      'malunggay':       ['moringa', 'drumstick leaves'],
-      'moringa':         ['malunggay'],
-      'saluyot':         ['jute leaves', 'jute mallow'],
-      'okra':            ['lady finger', 'ladies finger'],
-      'pipino':          ['cucumber'],
-      'cucumber':        ['pipino'],
-      'kamatis':         ['tomato'],
-      'tomato':          ['kamatis'],
-      'repolyo':         ['cabbage'],
-      'cabbage':         ['repolyo'],
-      'karot':           ['carrot'],
-      'carrot':          ['karot'],
-      // Fruits
-      'saging':          ['banana', 'plantain'],
-      'banana':          ['saging'],
-      'mangga':          ['mango'],
-      'mango':           ['mangga'],
-      'bayabas':         ['guava'],
-      'guava':           ['bayabas'],
-      'langka':          ['jackfruit'],
-      'jackfruit':       ['langka'],
-      'pinya':           ['pineapple'],
-      'pineapple':       ['pinya'],
-      'pakwan':          ['watermelon'],
-      'watermelon':      ['pakwan'],
-      'abukado':         ['avocado'],
-      'avocado':         ['abukado'],
-      // Rice
-      'kanin':           ['white rice', 'rice', 'plain rice'],
-      'white rice':      ['rice', 'kanin', 'plain rice', 'steamed rice'],
-      'rice':            ['white rice', 'kanin', 'plain rice'],
-      'brown rice':      ['rice', 'whole grain rice'],
-      'sinangag':        ['garlic rice', 'fried rice'],
-      'garlic rice':     ['sinangag', 'fried rice'],
-      'lugaw':           ['congee', 'rice porridge', 'porridge'],
-      'congee':          ['lugaw', 'porridge', 'rice porridge'],
-      'oats':            ['oatmeal', 'rolled oats'],
-      'oatmeal':         ['oats', 'rolled oats'],
-      // Meat
-      'manok':           ['chicken', 'fried chicken', 'grilled chicken'],
-      'chicken':         ['manok', 'fried chicken', 'grilled chicken'],
-      'fried chicken':   ['chicken', 'manok'],
-      'grilled chicken': ['chicken', 'manok'],
-      'baboy':           ['pork', 'lechon', 'liempo'],
-      'pork':            ['baboy', 'liempo', 'lechon'],
-      'liempo':          ['pork belly', 'pork', 'baboy'],
-      'lechon':          ['roast pork', 'pork', 'baboy'],
-      'baka':            ['beef'],
-      'beef':            ['baka'],
-      // Fish
-      'isda':            ['fish', 'tilapia', 'bangus'],
-      'fish':            ['isda', 'tilapia', 'bangus', 'galunggong'],
-      'bangus':          ['milkfish', 'fish', 'isda'],
-      'milkfish':        ['bangus', 'fish'],
-      'tilapia':         ['fish', 'isda'],
-      'galunggong':      ['fish', 'isda', 'mackerel scad'],
-      'sardinas':        ['sardines', 'canned fish'],
-      'sardines':        ['sardinas'],
-      'hipon':           ['shrimp', 'prawns'],
-      'shrimp':          ['hipon', 'prawns'],
-      'pusit':           ['squid'],
-      'squid':           ['pusit'],
-      // Eggs & tofu
-      'itlog':           ['egg', 'eggs', 'boiled egg', 'fried egg'],
-      'egg':             ['itlog', 'eggs', 'boiled egg'],
-      'eggs':            ['itlog', 'egg'],
-      'boiled egg':      ['itlog', 'egg'],
-      'tokwa':           ['tofu', 'bean curd'],
-      'tofu':            ['tokwa', 'bean curd'],
-      'taho':            ['soft tofu', 'silken tofu', 'tofu'],
-      // Common dishes
-      'adobo':           ['chicken adobo', 'pork adobo', 'adobong manok'],
-      'sinigang':        ['pork sinigang', 'sinigang na baboy', 'sinigang na isda'],
-      'tinola':          ['chicken tinola', 'tinolang manok'],
-      'pinakbet':        ['pakbet', 'mixed vegetables'],
-      'pakbet':          ['pinakbet'],
-      'pancit':          ['noodles', 'bihon', 'canton', 'pancit canton'],
-      'noodles':         ['pancit', 'bihon', 'canton'],
-      'pandesal':        ['bread', 'pan de sal'],
-      'bread':           ['pandesal', 'tinapay'],
-      'mais':            ['corn'],
-      'corn':            ['mais'],
+      'mung beans':    ['monggo','mungo','munggo','mung bean'],
+      'monggo':        ['mung beans','mungo','munggo','mung bean'],
+      'mungo':         ['mung beans','monggo','munggo'],
+      'munggo':        ['mung beans','monggo','mungo'],
+      'ampalaya':      ['bitter gourd','bitter melon','amargoso'],
+      'bitter gourd':  ['ampalaya','bitter melon'],
+      'bitter melon':  ['ampalaya','bitter gourd'],
+      'sitaw':         ['string beans','long beans','yard long beans'],
+      'string beans':  ['sitaw','long beans'],
+      'talong':        ['eggplant','aubergine'],
+      'eggplant':      ['talong'],
+      'kangkong':      ['water spinach','swamp cabbage'],
+      'water spinach': ['kangkong'],
+      'kalabasa':      ['squash','pumpkin'],
+      'squash':        ['kalabasa','pumpkin'],
+      'camote':        ['sweet potato','kamote','yam'],
+      'kamote':        ['sweet potato','camote','yam'],
+      'sweet potato':  ['camote','kamote'],
+      'gabi':          ['taro','taro root'],
+      'taro':          ['gabi'],
+      'pechay':        ['bok choy','pak choi','chinese cabbage'],
+      'bok choy':      ['pechay','pak choi'],
+      'malunggay':     ['moringa','drumstick leaves'],
+      'moringa':       ['malunggay'],
+      'okra':          ['lady finger','ladies finger'],
+      'pipino':        ['cucumber'],
+      'cucumber':      ['pipino'],
+      'kamatis':       ['tomato'],
+      'tomato':        ['kamatis'],
+      'repolyo':       ['cabbage'],
+      'cabbage':       ['repolyo'],
+      'saging':        ['banana','plantain'],
+      'banana':        ['saging'],
+      'mangga':        ['mango'],
+      'mango':         ['mangga'],
+      'langka':        ['jackfruit'],
+      'jackfruit':     ['langka'],
+      'pinya':         ['pineapple'],
+      'pineapple':     ['pinya'],
+      'pakwan':        ['watermelon'],
+      'watermelon':    ['pakwan'],
+      'avocado':       ['abukado'],
+      'abukado':       ['avocado'],
+      'kanin':         ['white rice','rice','plain rice'],
+      'white rice':    ['rice','kanin','plain rice','steamed rice'],
+      'rice':          ['white rice','kanin','plain rice'],
+      'brown rice':    ['rice','whole grain rice'],
+      'sinangag':      ['garlic rice','fried rice'],
+      'garlic rice':   ['sinangag','fried rice'],
+      'lugaw':         ['congee','rice porridge','porridge'],
+      'congee':        ['lugaw','porridge'],
+      'oats':          ['oatmeal','rolled oats'],
+      'oatmeal':       ['oats','rolled oats'],
+      'manok':         ['chicken','fried chicken','grilled chicken'],
+      'chicken':       ['manok','fried chicken','grilled chicken'],
+      'fried chicken': ['chicken','manok'],
+      'baboy':         ['pork','lechon','liempo'],
+      'pork':          ['baboy','liempo','lechon'],
+      'liempo':        ['pork belly','pork','baboy'],
+      'lechon':        ['roast pork','pork','baboy'],
+      'baka':          ['beef'],
+      'beef':          ['baka'],
+      'isda':          ['fish','tilapia','bangus'],
+      'fish':          ['isda','tilapia','bangus','galunggong'],
+      'bangus':        ['milkfish','fish','isda'],
+      'milkfish':      ['bangus','fish'],
+      'tilapia':       ['fish','isda'],
+      'galunggong':    ['fish','isda','mackerel scad'],
+      'sardinas':      ['sardines','canned fish'],
+      'sardines':      ['sardinas'],
+      'hipon':         ['shrimp','prawns'],
+      'shrimp':        ['hipon','prawns'],
+      'pusit':         ['squid'],
+      'squid':         ['pusit'],
+      'itlog':         ['egg','eggs','boiled egg','fried egg'],
+      'egg':           ['itlog','eggs','boiled egg'],
+      'eggs':          ['itlog','egg'],
+      'tokwa':         ['tofu','bean curd'],
+      'tofu':          ['tokwa','bean curd'],
+      'adobo':         ['chicken adobo','pork adobo','adobong manok'],
+      'sinigang':      ['pork sinigang','sinigang na baboy'],
+      'tinola':        ['chicken tinola','tinolang manok'],
+      'pinakbet':      ['pakbet','mixed vegetables'],
+      'pakbet':        ['pinakbet'],
+      'pancit':        ['noodles','bihon','canton'],
+      'noodles':       ['pancit','bihon','canton'],
+      'pandesal':      ['bread','pan de sal'],
+      'bread':         ['pandesal','tinapay'],
+      'mais':          ['corn'],
+      'corn':          ['mais'],
     };
 
-    // Direct lookup
     if (map.containsKey(food)) s.addAll(map[food]!);
-
-    // Partial match — if food name contains a key
-    for (final entry in map.entries) {
-      if (food != entry.key &&
-          (food.contains(entry.key) || entry.key.contains(food))) {
-        s.addAll(entry.value);
-        s.add(entry.key);
+    for (final e in map.entries) {
+      if (food != e.key &&
+          (food.contains(e.key) || e.key.contains(food))) {
+        s.addAll(e.value);
+        s.add(e.key);
       }
     }
-
     return s.toList();
   }
 
   String _normCat(String c) {
-    final l = c.toLowerCase();
-    if (l == 'do')    return 'do';
-    if (l == "don't") return 'dont';
+    if (c.toLowerCase() == 'do')    return 'do';
+    if (c.toLowerCase() == "don't") return 'dont';
     return 'unknown';
   }
 
@@ -532,7 +537,8 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
       await FirebaseFirestore.instance
-          .collection('users').doc(user.uid)
+          .collection('users')
+          .doc(user.uid)
           .collection('scanned_foods')
           .add({
         'food':      _detectedFood,
@@ -541,7 +547,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      debugPrint('Save history error: $e');
+      debugPrint('Save error: $e');
     }
   }
 
@@ -560,7 +566,8 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
         content: Text(msg),
         actions: [
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2C6E49)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2C6E49)),
             onPressed: () => Navigator.pop(ctx),
             child: const Text('OK', style: TextStyle(color: Colors.white)),
           ),
@@ -574,160 +581,300 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
       .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
       .join(' ');
 
-  // ═══════════════════════════════════════════════════════════════════════
+  double _num(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0;
+
+  // ════════════════════════════════════════════════════════════════════════
   // UI
-  // ═══════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FDF9),
-      appBar: AppBar(
-        // ── Renamed from "AI Food Scanner" to "Food Scan" ──
-        title: const Text('Food Scan',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF2C6E49),
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          if (_userDiabetesType.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+
+          // ── 1. Camera preview or fallback ─────────────────────────────
+          if (_cameraPermDenied)
+            _buildPermissionDenied()
+          else if (_isCameraReady && _cameraController != null)
+            Positioned.fill(child: CameraPreview(_cameraController!))
+          else
+            const Positioned.fill(
               child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text('$_userDiabetesType Diabetes',
-                      style: const TextStyle(color: Colors.white, fontSize: 12)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                    SizedBox(height: 16),
+                    Text('Starting camera...',
+                        style: TextStyle(color: Colors.white, fontSize: 15)),
+                  ],
                 ),
               ),
             ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          // Background image or placeholder
-          if (_capturedImage != null)
-            Positioned.fill(child: Image.file(_capturedImage!, fit: BoxFit.cover))
-          else
-            _buildPlaceholder(),
 
-          // Dim overlay when image is shown
-          if (_capturedImage != null)
-            Container(color: const Color.fromRGBO(0, 0, 0, 0.45)),
+          // ── 2. Scanner overlay (only when camera is live) ─────────────
+          if (_isCameraReady && !_cameraPermDenied)
+            _buildScanOverlay(context),
 
-          // Center content
-          Center(
-            child: _isLoading
-                ? _buildLoadingCard()
-                : _detectedFood.isNotEmpty
-                    ? _buildResultCard()
-                    : const SizedBox.shrink(),
-          ),
-
-          // Bottom buttons
+          // ── 3. Top bar ────────────────────────────────────────────────
           Positioned(
-            bottom: 40, left: 0, right: 0,
-            child: Column(
-              children: [
-                if (_detectedFood.isNotEmpty && !_isLoading) ...[
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            top: 0, left: 0, right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    _topBtn(Icons.arrow_back, () => Navigator.pop(context)),
+                    const SizedBox(width: 12),
+                    const Text('Food Scan',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    if (_userDiabetesType.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black45,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text('$_userDiabetesType Diabetes',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 11)),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    // Flash button
+                    _topBtn(
+                      _flashOn ? Icons.flash_on : Icons.flash_off,
+                      _toggleFlash,
+                      active: _flashOn,
                     ),
-                    icon: const Icon(Icons.clear, size: 20, color: Colors.white),
-                    label: const Text('Clear', style: TextStyle(color: Colors.white, fontSize: 14)),
-                    onPressed: () => setState(() {
-                      _capturedImage   = null;
-                      _detectedFood    = '';
-                      _matchedFoodRule = null;
-                      _category        = 'unknown';
-                    }),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2C6E49),
-                    padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                  ),
-                  icon: const Icon(Icons.camera_alt, size: 28, color: Colors.white),
-                  label: Text(
-                    _detectedFood.isEmpty ? 'Scan Food' : 'Scan Again',
-                    style: const TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                  onPressed: _isLoading ? null : _scanImage,
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
+
+          // ── 4. Loading overlay ────────────────────────────────────────
+          if (_isLoading)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black54,
+                child: Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 48),
+                    padding: const EdgeInsets.all(28),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFF4CAF50), width: 1.5),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                            color: Color(0xFF4CAF50)),
+                        const SizedBox(height: 16),
+                        Text(_loadingMessage,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 15),
+                            textAlign: TextAlign.center),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // ── 5. Result panel (bottom sheet style) ─────────────────────
+          if (_showResult && !_isLoading)
+            Positioned(
+                bottom: 0, left: 0, right: 0,
+                child: _buildResultPanel()),
+
+          // ── 6. Scan button + hint (only when no result) ───────────────
+          if (!_showResult && !_isLoading && _isCameraReady)
+            Positioned(
+              bottom: 48, left: 0, right: 0,
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Point at food and tap Scan',
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  GestureDetector(
+                    onTap: _captureAndScan,
+                    child: Container(
+                      width: 76,
+                      height: 76,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF2C6E49),
+                        border: Border.all(color: Colors.white, width: 3.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                const Color(0xFF2C6E49).withOpacity(0.6),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.center_focus_strong,
+                          color: Colors.white, size: 36),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 
-  // ── Placeholder — NO chips ─────────────────────────────────────────────
-  Widget _buildPlaceholder() {
+  // ── Top icon button ───────────────────────────────────────────────────
+  Widget _topBtn(IconData icon, VoidCallback onTap, {bool active = false}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: active
+              ? Colors.yellow.withOpacity(0.25)
+              : Colors.black45,
+          borderRadius: BorderRadius.circular(10),
+          border: active
+              ? Border.all(color: Colors.yellow, width: 1.5)
+              : null,
+        ),
+        child: Icon(icon,
+            color: active ? Colors.yellow : Colors.white, size: 22),
+      ),
+    );
+  }
+
+  // ── Permission denied screen ──────────────────────────────────────────
+  Widget _buildPermissionDenied() {
     return Positioned.fill(
       child: Container(
-        color: Colors.grey.shade100,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2C6E49).withOpacity(0.08),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.camera_alt,
-                  size: 80, color: const Color(0xFF2C6E49).withOpacity(0.5)),
+        color: const Color(0xFF1A1A1A),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.camera_alt, color: Colors.white30, size: 72),
+                const SizedBox(height: 20),
+                const Text('Camera Permission Required',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                Text(
+                  'Please allow camera access to use the food scanner.',
+                  style:
+                      TextStyle(color: Colors.white54, fontSize: 14, height: 1.5),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2C6E49),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 28, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => openAppSettings(),
+                  child: const Text('Open Settings',
+                      style: TextStyle(color: Colors.white)),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            // ── Changed from "AI Food Scanner" to "Food Scan" ──
-            const Text('Food Scan',
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2C6E49))),
-            const SizedBox(height: 10),
-            Text(
-              'Take a photo of your food\nto check if it\'s safe for your diabetes',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 15, color: Colors.grey.shade600, height: 1.6),
-            ),
-            // ── Chips removed as requested ──
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildLoadingCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-          color: Colors.black87, borderRadius: BorderRadius.circular(20)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(color: Color(0xFF4CAF50)),
-          const SizedBox(height: 16),
-          Text(_loadingMessage,
-              style: const TextStyle(color: Colors.white, fontSize: 15),
-              textAlign: TextAlign.center),
-        ],
+  // ── Scanner frame overlay ─────────────────────────────────────────────
+  Widget _buildScanOverlay(BuildContext context) {
+    final size       = MediaQuery.of(context).size;
+    final frameSize  = size.width * 0.72;
+    final frameLeft  = (size.width - frameSize) / 2;
+    final frameTop   = (size.height - frameSize) / 2 - 50;
+
+    return Stack(
+      children: [
+        // Dark mask — top
+        Positioned(
+            top: 0, left: 0, right: 0, height: frameTop,
+            child: Container(color: Colors.black54)),
+        // Dark mask — left
+        Positioned(
+            top: frameTop, left: 0, width: frameLeft, height: frameSize,
+            child: Container(color: Colors.black54)),
+        // Dark mask — right
+        Positioned(
+            top: frameTop, right: 0, width: frameLeft, height: frameSize,
+            child: Container(color: Colors.black54)),
+        // Dark mask — bottom
+        Positioned(
+            top: frameTop + frameSize, left: 0, right: 0, bottom: 0,
+            child: Container(color: Colors.black54)),
+
+        // Corner brackets
+        Positioned(top: frameTop,              left: frameLeft,
+            child: _corner(true,  true)),
+        Positioned(top: frameTop,              right: frameLeft,
+            child: _corner(true,  false)),
+        Positioned(top: frameTop + frameSize - 32, left: frameLeft,
+            child: _corner(false, true)),
+        Positioned(top: frameTop + frameSize - 32, right: frameLeft,
+            child: _corner(false, false)),
+
+        // Animated scan line
+        if (!_isLoading && !_showResult)
+          _ScanLine(
+              frameTop: frameTop,
+              frameSize: frameSize,
+              frameLeft: frameLeft),
+      ],
+    );
+  }
+
+  Widget _corner(bool top, bool left) {
+    return SizedBox(
+      width: 32, height: 32,
+      child: CustomPaint(
+        painter: _CornerPainter(
+            color: const Color(0xFF4CAF50),
+            strokeWidth: 4,
+            top: top,
+            left: left),
       ),
     );
   }
 
-  Widget _buildResultCard() {
+  // ── Result panel ──────────────────────────────────────────────────────
+  Widget _buildResultPanel() {
     Color    catColor;
     IconData catIcon;
     String   catLabel;
@@ -751,181 +898,310 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
 
     final rule = _matchedFoodRule;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 80, 16, 110),
-      child: SingleChildScrollView(
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.black87,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: catColor.withOpacity(0.7), width: 2),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: catColor.withOpacity(0.5), width: 1.5),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          const SizedBox(height: 14),
 
-              // ── Food name + status badge ──────────────────────────────
-              Row(children: [
-                Expanded(
-                  child: Text(_cap(_detectedFood),
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: catColor.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: catColor),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(catIcon, color: catColor, size: 15),
-                    const SizedBox(width: 4),
-                    Text(catLabel,
-                        style: TextStyle(
-                            color: catColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11)),
+          // Food name + badge
+          Row(children: [
+            Expanded(
+              child: Text(_cap(_detectedFood),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: catColor.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: catColor),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(catIcon, color: catColor, size: 14),
+                const SizedBox(width: 4),
+                Text(catLabel,
+                    style: TextStyle(
+                        color: catColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
+              ]),
+            ),
+          ]),
+
+          const SizedBox(height: 12),
+
+          // Nutrition chips or not-in-db notice
+          if (rule != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('NUTRITION INFO',
+                      style: TextStyle(
+                          color: Colors.white38,
+                          fontSize: 9,
+                          letterSpacing: 1.2)),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 8, runSpacing: 6, children: [
+                    if (_num(rule['calories']) > 0)
+                      _chip('Cal', '${rule['calories']} kcal', Colors.orange),
+                    if (_num(rule['carbs']) > 0)
+                      _chip('Carbs', '${rule['carbs']}g', Colors.blue),
+                    if (_num(rule['protein']) > 0)
+                      _chip('Protein', '${rule['protein']}g', Colors.purple),
+                    if (_num(rule['fat']) > 0)
+                      _chip('Fat', '${rule['fat']}g', Colors.brown),
+                    if (_num(rule['sugar']) > 0)
+                      _chip('Sugar', '${rule['sugar']}g', Colors.red),
                   ]),
+                  if ((rule['portionSize'] ?? '').toString().isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text('Portion: ${rule['portionSize']}',
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 11)),
+                  ],
+                  if ((rule['diabetesType'] ?? '').toString().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('For: ${rule['diabetesType']} Diabetes',
+                        style: const TextStyle(
+                            color: Colors.white30, fontSize: 11)),
+                  ],
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '"${_cap(_detectedFood)}" is not in your database yet.\nAsk your admin to add it.',
+                    style: const TextStyle(
+                        color: Colors.orange, fontSize: 12, height: 1.4),
+                  ),
                 ),
               ]),
+            ),
+          ],
 
-              const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-              // ── Nutrition info ────────────────────────────────────────
-              if (rule != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('NUTRITION INFO',
-                          style: TextStyle(
-                              color: Colors.white38,
-                              fontSize: 10,
-                              letterSpacing: 1.2)),
-                      const SizedBox(height: 10),
-                      if ((rule['name'] ?? '').toString().isNotEmpty)
-                        _row(Icons.label_outline, 'Food',
-                            _cap(rule['name'].toString())),
-                      if ((rule['portionSize'] ?? '').toString().isNotEmpty)
-                        _row(Icons.scale, 'Portion',
-                            rule['portionSize'].toString()),
-                      if (_num(rule['calories']) > 0)
-                        _row(Icons.local_fire_department, 'Calories',
-                            '${rule['calories']} kcal'),
-                      if (_num(rule['carbs']) > 0)
-                        _row(Icons.bubble_chart, 'Carbs',
-                            '${rule['carbs']} g'),
-                      if (_num(rule['protein']) > 0)
-                        _row(Icons.fitness_center, 'Protein',
-                            '${rule['protein']} g'),
-                      if (_num(rule['fat']) > 0)
-                        _row(Icons.opacity, 'Fat', '${rule['fat']} g'),
-                      if (_num(rule['sugar']) > 0)
-                        _row(Icons.water_drop, 'Sugar',
-                            '${rule['sugar']} g'),
-                      if ((rule['diabetesType'] ?? '').toString().isNotEmpty) ...[
-                        const Divider(color: Colors.white12, height: 18),
-                        Text('For: ${rule['diabetesType']} Diabetes',
-                            style: const TextStyle(
-                                color: Colors.white38, fontSize: 12)),
-                      ],
-                    ],
-                  ),
-                ),
-              ] else ...[
-                // Food not in database
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.orange.withOpacity(0.4)),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.info_outline,
-                        color: Colors.orange, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '"${_cap(_detectedFood)}" is not in your database yet.\nAsk your admin to add it.',
-                        style: const TextStyle(
-                            color: Colors.orange, fontSize: 13, height: 1.4),
-                      ),
-                    ),
-                  ]),
-                ),
-              ],
-
-              const SizedBox(height: 14),
-
-              // ── Recommendation banner ─────────────────────────────────
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: catColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: catColor.withOpacity(0.4)),
-                ),
-                child: Text(
-                  _category == 'do'
-                      ? 'Recommended for diabetics${_userDiabetesType.isNotEmpty ? ' with $_userDiabetesType diabetes' : ''}.'
-                      : _category == 'dont'
-                          ? 'Should be avoided${_userDiabetesType.isNotEmpty ? ' for $_userDiabetesType diabetes' : ' by diabetics'}.'
-                          : 'Not found in database. Consult your doctor.',
-                  style: TextStyle(
-                      color: catColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      height: 1.4),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-              if (_userDiabetesType.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Center(
-                  child: Text(
-                    'Your profile: $_userDiabetesType Diabetes',
-                    style: const TextStyle(color: Colors.white30, fontSize: 11),
-                  ),
-                ),
-              ],
-            ],
+          // Recommendation banner
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+            decoration: BoxDecoration(
+              color: catColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: catColor.withOpacity(0.4)),
+            ),
+            child: Text(
+              _category == 'do'
+                  ? 'Recommended for diabetics${_userDiabetesType.isNotEmpty ? ' with $_userDiabetesType diabetes' : ''}.'
+                  : _category == 'dont'
+                      ? 'Should be avoided${_userDiabetesType.isNotEmpty ? ' for $_userDiabetesType diabetes' : ' by diabetics'}.'
+                      : 'Not found in database. Consult your doctor.',
+              style: TextStyle(
+                  color: catColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  height: 1.4),
+              textAlign: TextAlign.center,
+            ),
           ),
-        ),
+
+          const SizedBox(height: 14),
+
+          // Scan again
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2C6E49),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: const Icon(Icons.center_focus_strong,
+                  color: Colors.white, size: 20),
+              label: const Text('Scan Again',
+                  style: TextStyle(color: Colors.white, fontSize: 16)),
+              onPressed: () => setState(() {
+                _showResult      = false;
+                _detectedFood    = '';
+                _matchedFoodRule = null;
+                _category        = 'unknown';
+              }),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _row(IconData icon, String label, String val) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(children: [
-          Icon(icon, color: Colors.white38, size: 14),
-          const SizedBox(width: 6),
-          Text('$label: ',
-              style: const TextStyle(color: Colors.white54, fontSize: 13)),
-          Expanded(
-            child: Text(val,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis),
-          ),
-        ]),
-      );
+  Widget _chip(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text('$label: $value',
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+    );
+  }
+}
 
-  double _num(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0;
+// ── Animated scan line ────────────────────────────────────────────────────
+class _ScanLine extends StatefulWidget {
+  final double frameTop;
+  final double frameSize;
+  final double frameLeft;
+  const _ScanLine({
+    required this.frameTop,
+    required this.frameSize,
+    required this.frameLeft,
+  });
+
+  @override
+  State<_ScanLine> createState() => _ScanLineState();
+}
+
+class _ScanLineState extends State<_ScanLine>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double>    _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 2))
+      ..repeat(reverse: true);
+    _anim = Tween(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) {
+        final y = widget.frameTop + _anim.value * widget.frameSize;
+        return Positioned(
+          top: y,
+          left: widget.frameLeft + 4,
+          right: MediaQuery.of(context).size.width -
+              widget.frameLeft -
+              widget.frameSize +
+              4,
+          child: Container(
+            height: 2.5,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                Colors.transparent,
+                const Color(0xFF4CAF50).withOpacity(0.8),
+                const Color(0xFF4CAF50),
+                const Color(0xFF4CAF50).withOpacity(0.8),
+                Colors.transparent,
+              ]),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4CAF50).withOpacity(0.6),
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Corner bracket painter ────────────────────────────────────────────────
+class _CornerPainter extends CustomPainter {
+  final Color  color;
+  final double strokeWidth;
+  final bool   top;
+  final bool   left;
+
+  const _CornerPainter({
+    required this.color,
+    required this.strokeWidth,
+    required this.top,
+    required this.left,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color       = color
+      ..strokeWidth = strokeWidth
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
+
+    final path = Path();
+    final w = size.width;
+    final h = size.height;
+
+    if (top && left) {
+      path.moveTo(0, h); path.lineTo(0, 0); path.lineTo(w, 0);
+    } else if (top && !left) {
+      path.moveTo(0, 0); path.lineTo(w, 0); path.lineTo(w, h);
+    } else if (!top && left) {
+      path.moveTo(0, 0); path.lineTo(0, h); path.lineTo(w, h);
+    } else {
+      path.moveTo(0, h); path.lineTo(w, h); path.lineTo(w, 0);
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CornerPainter o) =>
+      o.color != color || o.strokeWidth != strokeWidth;
 }
