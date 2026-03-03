@@ -29,6 +29,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   String _category        = 'unknown';
   String _userDiabetesType = '';
   List<Map<String, dynamic>> _allFoodDocs = [];
+  String? _capturedImagePath; // Store the captured photo path
 
   static const String _geminiApiKey = 'AIzaSyCYBd-lzRCBFbhSYw08AOOzbJWIomlfGB0';
   static const String _geminiModel  = 'gemini-2.5-flash';
@@ -176,6 +177,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
         _detectedFood   = '';
         _matchedFoodRule = null;
         _category       = 'unknown';
+        _capturedImagePath = xFile.path; // Store the image path
       });
 
       final knownFoods = _allFoodDocs
@@ -938,6 +940,34 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           ),
           const SizedBox(height: 14),
 
+          // Captured food image
+          if (_capturedImagePath != null)
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: catColor.withOpacity(0.3), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.file(
+                    File(_capturedImagePath!),
+                    width: 140,
+                    height: 140,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
+
           // Food name + badge
           Row(children: [
             Expanded(
@@ -1077,12 +1107,23 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
                   color: Colors.white, size: 20),
               label: const Text('Scan Again',
                   style: TextStyle(color: Colors.white, fontSize: 16)),
-              onPressed: () => setState(() {
-                _showResult      = false;
-                _detectedFood    = '';
-                _matchedFoodRule = null;
-                _category        = 'unknown';
-              }),
+              onPressed: () {
+                // Clean up the captured image
+                if (_capturedImagePath != null) {
+                  try {
+                    File(_capturedImagePath!).delete();
+                  } catch (e) {
+                    debugPrint('Failed to delete image: $e');
+                  }
+                }
+                setState(() {
+                  _showResult        = false;
+                  _detectedFood      = '';
+                  _matchedFoodRule   = null;
+                  _category          = 'unknown';
+                  _capturedImagePath = null;
+                });
+              },
             ),
           ),
         ],
