@@ -30,8 +30,13 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   String _userDiabetesType = '';
   List<Map<String, dynamic>> _allFoodDocs = [];
 
+<<<<<<< HEAD
   static const String _geminiApiKey = 'AIzaSyBsEWZ-oIgSbEnHp-uCxWJZL3k7yO59Cws';
   static const String _geminiModel  = 'gemini-1.5-flash';
+=======
+  static const String _geminiApiKey = 'AIzaSyCYBd-lzRCBFbhSYw08AOOzbJWIomlfGB0';
+  static const String _geminiModel  = 'gemini-2.5-flash';
+>>>>>>> 5ee53bbbeb3ed107e65f4125ea10b7e532f875bc
 
   @override
   void initState() {
@@ -234,7 +239,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           '$hint';
 
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1/models/'
+        'https://generativelanguage.googleapis.com/v1beta/models/'
         '$_geminiModel:generateContent?key=$_geminiApiKey',
       );
 
