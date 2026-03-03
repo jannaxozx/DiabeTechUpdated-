@@ -33,7 +33,6 @@ class _MealLogScreenState extends State<MealLogScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      // FIX: use useSafeArea to avoid keyboard overflow
       useSafeArea: true,
       builder: (_) => AddFoodSheet(
         preselectedMeal: preselectedMeal ?? _mealTypes[_tabController.index],
@@ -91,8 +90,6 @@ class _MealTab extends StatelessWidget {
     if (user == null) return const SizedBox();
 
     return StreamBuilder<QuerySnapshot>(
-      // FIX: Removed orderBy+timestamp compound query that requires Firestore index.
-      // We fetch by mealType only, then sort client-side to avoid index errors.
       stream: FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -111,7 +108,6 @@ class _MealTab extends StatelessWidget {
           );
         }
 
-        // Filter to today only (client-side) and sort newest first
         final now   = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
         final tomorrow = today.add(const Duration(days: 1));
@@ -120,7 +116,7 @@ class _MealTab extends StatelessWidget {
         final docs = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final ts = (data['timestamp'] as Timestamp?)?.toDate();
-          if (ts == null) return true; // show items with no timestamp too
+          if (ts == null) return true;
           return ts.isAfter(today) && ts.isBefore(tomorrow);
         }).toList()
           ..sort((a, b) {
@@ -129,10 +125,9 @@ class _MealTab extends StatelessWidget {
             if (aTs == null && bTs == null) return 0;
             if (aTs == null) return 1;
             if (bTs == null) return -1;
-            return bTs.compareTo(aTs); // newest first
+            return bTs.compareTo(aTs);
           });
 
-        // Totals
         double totalCal = 0, totalCarbs = 0, totalProtein = 0,
                totalFat = 0, totalSugar = 0;
         for (final doc in docs) {
@@ -269,7 +264,6 @@ class _FoodLogCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top row: image + info + delete
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -331,7 +325,6 @@ class _FoodLogCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            // FIX: Prominent delete button at the bottom of the card
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -428,7 +421,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
   String _searchQuery = '';
   late String _selectedMeal;
   bool _isSaving = false;
-  String _userDiabetesType = '';  // ← NEW
+  String _userDiabetesType = '';
 
   Map<String, dynamic>? _selectedFood;
   String? _selectedFoodId;
@@ -437,10 +430,9 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
   void initState() {
     super.initState();
     _selectedMeal = widget.preselectedMeal;
-    _loadDiabetesType(); // ← NEW
+    _loadDiabetesType();
   }
 
-  // ── Load user's diabetes type from Firestore ──────────────────────────
   Future<void> _loadDiabetesType() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -517,12 +509,11 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // FIX: Use Padding with viewInsets for keyboard, wrapped in SafeArea
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return SafeArea(
       child: Padding(
-        // FIX: This properly pushes content up when keyboard appears
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding: EdgeInsets.only(bottom: bottomInset),
         child: DraggableScrollableSheet(
           initialChildSize: 0.88,
           minChildSize: 0.5,
@@ -559,7 +550,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                               fontWeight: FontWeight.bold,
                               color: _green)),
                       const Spacer(),
-                      // ── Diabetes type badge ──────────────────────────
                       if (_userDiabetesType.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -720,7 +710,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
                         ),
                 ),
 
-                // FIX: Add button — no extra bottom padding, SafeArea handles it
+                // Add button
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: SizedBox(
@@ -820,7 +810,7 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
 class _FoodSearchResults extends StatelessWidget {
   final String query;
   final String? selectedId;
-  final String diabetesType;  // ← NEW
+  final String diabetesType;
   final void Function(String id, Map<String, dynamic> food) onSelect;
 
   const _FoodSearchResults({
@@ -850,7 +840,6 @@ class _FoodSearchResults extends StatelessWidget {
 
         final allDocs = snap.data?.docs ?? [];
 
-        // ── Step 1: Filter by user's diabetes type first ─────────────
         final typeFiltered = diabetesType.isEmpty
             ? allDocs
             : allDocs.where((doc) {
@@ -858,7 +847,6 @@ class _FoodSearchResults extends StatelessWidget {
                 return (data['diabetesType'] ?? '') == diabetesType;
               }).toList();
 
-        // ── Step 2: Then filter by search query ───────────────────────
         final filtered = query.isEmpty
             ? typeFiltered
             : typeFiltered.where((doc) {
@@ -873,60 +861,66 @@ class _FoodSearchResults extends StatelessWidget {
               }).toList();
 
         if (filtered.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.no_food,
-                      size: 52, color: Colors.red.shade300),
-                ),
-                const SizedBox(height: 16),
-                Text('Food Not Found',
-                    style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red.shade400)),
-                const SizedBox(height: 6),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Text(
-                    query.isEmpty
-                        ? 'No foods found for $diabetesType diabetes type.'
-                        : '"$query" is not in the database for $diabetesType diabetes.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: Colors.grey.shade500, fontSize: 13)),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.shade200),
-                  ),
-                  child: Row(children: [
-                    Icon(Icons.info_outline,
-                        color: Colors.orange.shade400, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Ask your admin to add this food to the database.',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.orange.shade700),
-                      ),
+          // FIX: Wrap in SingleChildScrollView so content doesn't overflow
+          // when the keyboard is open and vertical space is reduced
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      shape: BoxShape.circle,
                     ),
-                  ]),
-                ),
-              ],
+                    child: Icon(Icons.no_food,
+                        size: 52, color: Colors.red.shade300),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Food Not Found',
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade400)),
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      query.isEmpty
+                          ? 'No foods found for $diabetesType diabetes type.'
+                          : '"$query" is not in the database for $diabetesType diabetes.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Colors.grey.shade500, fontSize: 13)),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(children: [
+                      Icon(Icons.info_outline,
+                          color: Colors.orange.shade400, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Ask your admin to add this food to the database.',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange.shade700),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ],
+              ),
             ),
           );
         }
