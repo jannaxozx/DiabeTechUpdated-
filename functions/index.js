@@ -26,7 +26,7 @@ exports.identifyFoodWithGemini = functions.https.onCall(async (data, context) =>
       );
     }
 
-    const geminiModel = 'gemini-2.5-flash';
+    const geminiModel = 'gemini-2.5-flash'; // Already correct
     const prompt = `
 Look at this image and identify the food item.
 
