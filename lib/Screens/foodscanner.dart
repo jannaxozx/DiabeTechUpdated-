@@ -109,7 +109,10 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   Future<void> _loadUserData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        debugPrint('⚠️ No user logged in');
+        return;
+      }
 
       final results = await Future.wait([
         FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
@@ -127,8 +130,15 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
             .toList();
       });
       debugPrint('Loaded ${_allFoodDocs.length} food rules');
+      
+      if (_allFoodDocs.isEmpty) {
+        debugPrint('⚠️ WARNING: No food rules found in database!');
+      }
     } catch (e) {
       debugPrint('Load user data error: $e');
+      if (e.toString().contains('permission-denied')) {
+        debugPrint('⚠️ Firestore permission denied - check security rules');
+      }
     }
   }
 
@@ -174,6 +184,13 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           .toList();
 
       final foodName = await _identifyWithGemini(xFile.path, knownFoods);
+
+      // Clean up temporary image file
+      try {
+        await File(xFile.path).delete();
+      } catch (e) {
+        debugPrint('Failed to delete temp image: $e');
+      }
 
       if (!mounted) return;
 
@@ -235,7 +252,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
 
       final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models/'
-        '$_geminiModel:generateContent?key=$_geminiApiKey',
+        '${_geminiModel}:generateContent?key=${_geminiApiKey}',
       );
 
       final response = await http.post(

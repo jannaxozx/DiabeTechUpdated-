@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to scan food items for diabetes management</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to save scanned food images</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app does not use the microphone</string>
 </dict>
 </plist>
