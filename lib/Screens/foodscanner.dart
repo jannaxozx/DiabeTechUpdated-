@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -29,14 +30,10 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   String _category        = 'unknown';
   String _userDiabetesType = '';
   List<Map<String, dynamic>> _allFoodDocs = [];
+  String? _capturedImagePath; // Store the captured photo path
 
-<<<<<<< HEAD
-  static const String _geminiApiKey = 'AIzaSyBsEWZ-oIgSbEnHp-uCxWJZL3k7yO59Cws';
-  static const String _geminiModel  = 'gemini-1.5-flash';
-=======
-  static const String _geminiApiKey = 'AIzaSyCYBd-lzRCBFbhSYw08AOOzbJWIomlfGB0';
+  static const String _geminiApiKey = 'AIzaSyBlWu6boMeidFAzSMMMlBJoXuk-ZBJowHc';
   static const String _geminiModel  = 'gemini-2.5-flash';
->>>>>>> 5ee53bbbeb3ed107e65f4125ea10b7e532f875bc
 
   @override
   void initState() {
@@ -181,7 +178,11 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
         _detectedFood   = '';
         _matchedFoodRule = null;
         _category       = 'unknown';
+        _capturedImagePath = xFile.path; // Store the image path
       });
+      
+      debugPrint('📸 Image captured: ${xFile.path}');
+      debugPrint('📸 File exists: ${await File(xFile.path).exists()}');
 
       final knownFoods = _allFoodDocs
           .map((d) => (d['name'] ?? '').toString().trim())
@@ -190,12 +191,8 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
 
       final foodName = await _identifyWithGemini(xFile.path, knownFoods);
 
-      // Clean up temporary image file
-      try {
-        await File(xFile.path).delete();
-      } catch (e) {
-        debugPrint('Failed to delete temp image: $e');
-      }
+      // Don't delete the image yet - we need it for display
+      // It will be deleted when user taps "Scan Again"
 
       if (!mounted) return;
 
@@ -227,6 +224,10 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
         _isLoading  = false;
         _showResult = true;
       });
+      
+      debugPrint('📸 Showing result with image: $_capturedImagePath');
+      debugPrint('📸 _showResult: $_showResult');
+      debugPrint('📸 Image path is null: ${_capturedImagePath == null}');
     } catch (e) {
       debugPrint('Capture error: $e');
       _showError('Something went wrong: $e');
@@ -943,6 +944,52 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           ),
           const SizedBox(height: 14),
 
+          // DEBUG: Show image path status
+          if (kDebugMode)
+            Center(
+              child: Text(
+                'Image: ${_capturedImagePath != null ? "✓ ${_capturedImagePath!.split('/').last}" : "✗ null"}',
+                style: const TextStyle(color: Colors.yellow, fontSize: 10),
+              ),
+            ),
+
+          // Captured food image
+          if (_capturedImagePath != null)
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: catColor.withOpacity(0.3), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.file(
+                    File(_capturedImagePath!),
+                    width: 140,
+                    height: 140,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      debugPrint('❌ Error loading image: $error');
+                      return Container(
+                        width: 140,
+                        height: 140,
+                        color: Colors.grey[800],
+                        child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+
           // Food name + badge
           Row(children: [
             Expanded(
@@ -1000,8 +1047,6 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
                       _chip('Protein', '${rule['protein']}g', Colors.purple),
                     if (_num(rule['fat']) > 0)
                       _chip('Fat', '${rule['fat']}g', Colors.brown),
-                    if (_num(rule['sugar']) > 0)
-                      _chip('Sugar', '${rule['sugar']}g', Colors.red),
                   ]),
                   if ((rule['portionSize'] ?? '').toString().isNotEmpty) ...[
                     const SizedBox(height: 6),
@@ -1082,12 +1127,23 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
                   color: Colors.white, size: 20),
               label: const Text('Scan Again',
                   style: TextStyle(color: Colors.white, fontSize: 16)),
-              onPressed: () => setState(() {
-                _showResult      = false;
-                _detectedFood    = '';
-                _matchedFoodRule = null;
-                _category        = 'unknown';
-              }),
+              onPressed: () {
+                // Clean up the captured image
+                if (_capturedImagePath != null) {
+                  try {
+                    File(_capturedImagePath!).delete();
+                  } catch (e) {
+                    debugPrint('Failed to delete image: $e');
+                  }
+                }
+                setState(() {
+                  _showResult        = false;
+                  _detectedFood      = '';
+                  _matchedFoodRule   = null;
+                  _category          = 'unknown';
+                  _capturedImagePath = null;
+                });
+              },
             ),
           ),
         ],

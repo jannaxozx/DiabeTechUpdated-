@@ -37,7 +37,7 @@ class HealthTipsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  'Eat balanced meals, and monitor your sugar intake regularly. '
+                  'Eat balanced meals, and monitor your carb intake regularly. '
                   'Include fiber-rich foods and exercise daily to manage diabetes effectively.',
                   style: TextStyle(fontSize: 16),
                 ),
@@ -63,7 +63,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '0.2g'),
                     NutrientTile(label: 'Proteins', value: '0.3g'),
                     NutrientTile(label: 'Calories', value: '52 kcal'),
-                    NutrientTile(label: 'Sugar', value: '10.4g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -74,7 +73,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '2.6g'),
                     NutrientTile(label: 'Proteins', value: '22.5g'),
                     NutrientTile(label: 'Calories', value: '120 kcal'),
-                    NutrientTile(label: 'Sugar', value: '0g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -85,7 +83,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '1.7g'),
                     NutrientTile(label: 'Proteins', value: '20g'),
                     NutrientTile(label: 'Calories', value: '96 kcal'),
-                    NutrientTile(label: 'Sugar', value: '0g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -96,7 +93,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '8g'),
                     NutrientTile(label: 'Proteins', value: '15.5g'),
                     NutrientTile(label: 'Calories', value: '144 kcal'),
-                    NutrientTile(label: 'Sugar', value: '0.6g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -107,7 +103,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '0.3g'),
                     NutrientTile(label: 'Proteins', value: '24g'),
                     NutrientTile(label: 'Calories', value: '99 kcal'),
-                    NutrientTile(label: 'Sugar', value: '0g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -151,7 +146,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '15g'),
                     NutrientTile(label: 'Proteins', value: '2g'),
                     NutrientTile(label: 'Calories', value: '160 kcal'),
-                    NutrientTile(label: 'Sugar', value: '7g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -162,7 +156,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '0.04g'),
                     NutrientTile(label: 'Proteins', value: '0.8g'),
                     NutrientTile(label: 'Calories', value: '38 kcal'),
-                    NutrientTile(label: 'Sugar', value: '7g'),
                   ],
                 ),
 
@@ -181,7 +174,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '0g'),
                     NutrientTile(label: 'Proteins', value: '0g'),
                     NutrientTile(label: 'Calories', value: '150kcal'),
-                    NutrientTile(label: 'Sugar', value: '39g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -192,7 +184,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '0.4g'),
                     NutrientTile(label: 'Proteins', value: '4.2g'),
                     NutrientTile(label: 'Calories', value: '206kcal'),
-                    NutrientTile(label: 'Sugar', value: '0.1g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -203,7 +194,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '15g'),
                     NutrientTile(label: 'Proteins', value: '8g'),
                     NutrientTile(label: 'Calories', value: '210kcal'),
-                    NutrientTile(label: 'Sugar', value: '9g'),
                   ],
                 ),_buildFoodCard(
                   imagePath: 'assets/images/noodles.png',
@@ -213,7 +203,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '13g'),
                     NutrientTile(label: 'Proteins', value: '5g'),
                     NutrientTile(label: 'Calories', value: '290kcal'),
-                    NutrientTile(label: 'Sugar', value: '2g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -224,7 +213,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '0.3g'),
                     NutrientTile(label: 'Proteins', value: '1.1g'),
                     NutrientTile(label: 'Calories', value: '89kcal'),
-                    NutrientTile(label: 'Sugar', value: '12g'),
                   ],
                 ),
                 _buildFoodCard(
@@ -235,7 +223,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '0.4g'),
                     NutrientTile(label: 'Proteins', value: '0.8g'),
                     NutrientTile(label: 'Calories', value: '60kcal'),
-                    NutrientTile(label: 'Sugar', value: '13.7g'),
                   ],
                 ),_buildFoodCard(
                   imagePath: 'assets/images/PINE.PNG',
@@ -245,7 +232,6 @@ class HealthTipsScreen extends StatelessWidget {
                     NutrientTile(label: 'Fats', value: '0.1g'),
                     NutrientTile(label: 'Proteins', value: '0.5g'),
                     NutrientTile(label: 'Calories', value: '50kcal'),
-                    NutrientTile(label: 'Sugar', value: '10g'),
                   ],
                 ),
               ],

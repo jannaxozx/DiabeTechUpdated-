@@ -14,7 +14,7 @@ class _MealLogScreenState extends State<MealLogScreen>
   late TabController _tabController;
 
   static const Color _green = Color(0xFF2C6E49);
-  static const List<String> _mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+  static const List<String> _mealTypes = ['Breakfast', 'Lunch', 'Dinner'];
 
   @override
   void initState() {
@@ -129,7 +129,7 @@ class _MealTab extends StatelessWidget {
           });
 
         double totalCal = 0, totalCarbs = 0, totalProtein = 0,
-               totalFat = 0, totalSugar = 0;
+               totalFat = 0;
         for (final doc in docs) {
           final d = doc.data() as Map<String, dynamic>;
           final n = d['nutrition'] as Map<String, dynamic>? ?? {};
@@ -137,7 +137,6 @@ class _MealTab extends StatelessWidget {
           totalCarbs   += _d(n['carbs']);
           totalProtein += _d(n['protein']);
           totalFat     += _d(n['fat']);
-          totalSugar   += _d(n['sugar']);
         }
 
         return Column(
@@ -168,7 +167,6 @@ class _MealTab extends StatelessWidget {
                         _summaryChip('🍞 ${totalCarbs.toStringAsFixed(1)}g carbs', Colors.blue),
                         _summaryChip('💪 ${totalProtein.toStringAsFixed(1)}g protein', Colors.purple),
                         _summaryChip('🧈 ${totalFat.toStringAsFixed(1)}g fat', Colors.brown),
-                        _summaryChip('🍬 ${totalSugar.toStringAsFixed(1)}g sugar', Colors.red),
                       ],
                     ),
                   ],
@@ -315,8 +313,6 @@ class _FoodLogCard extends StatelessWidget {
                             _chip('💪 ${_d(n['protein']).toStringAsFixed(1)}g protein', Colors.purple),
                           if (_d(n['fat']) > 0)
                             _chip('🧈 ${_d(n['fat']).toStringAsFixed(1)}g fat', Colors.brown),
-                          if (_d(n['sugar']) > 0)
-                            _chip('🍬 ${_d(n['sugar']).toStringAsFixed(1)}g sugar', Colors.red),
                         ],
                       ),
                     ],
@@ -415,7 +411,7 @@ class AddFoodSheet extends StatefulWidget {
 
 class _AddFoodSheetState extends State<AddFoodSheet> {
   static const Color _green = Color(0xFF2C6E49);
-  static const List<String> _mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+  static const List<String> _mealTypes = ['Breakfast', 'Lunch', 'Dinner'];
 
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -485,7 +481,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
           'carbs':    _d(food['carbs']),
           'protein':  _d(food['protein']),
           'fat':      _d(food['fat']),
-          'sugar':    _d(food['sugar']),
         },
       });
 
@@ -800,7 +795,6 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
       case 'Breakfast': return '🌅';
       case 'Lunch':     return '☀️';
       case 'Dinner':    return '🌙';
-      case 'Snack':     return '🍎';
       default:          return '🍽️';
     }
   }
@@ -1024,10 +1018,6 @@ class _FoodSearchResults extends StatelessWidget {
                                   _miniChip(
                                       '${_d(data['protein']).toStringAsFixed(1)}g protein',
                                       Colors.purple),
-                                if (_d(data['sugar']) > 0)
-                                  _miniChip(
-                                      '${_d(data['sugar']).toStringAsFixed(1)}g sugar',
-                                      Colors.red),
                               ],
                             ),
                             if (diabType.isNotEmpty)
@@ -1121,8 +1111,6 @@ class _SelectedFoodPreview extends StatelessWidget {
                       '${_d(food['protein']).toStringAsFixed(1)}g protein',
                     if (_d(food['fat']) > 0)
                       '${_d(food['fat']).toStringAsFixed(1)}g fat',
-                    if (_d(food['sugar']) > 0)
-                      '${_d(food['sugar']).toStringAsFixed(1)}g sugar',
                   ].join(' • '),
                   style:
                       TextStyle(fontSize: 11, color: Colors.grey.shade600),

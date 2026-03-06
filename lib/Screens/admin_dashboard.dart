@@ -35,7 +35,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final TextEditingController carbsController = TextEditingController();
   final TextEditingController proteinController = TextEditingController();
   final TextEditingController fatController = TextEditingController();
-  final TextEditingController sugarController = TextEditingController(); // ADDED
 
   String category = "Do";
   String _selectedDiabetesType = "Mild";
@@ -87,7 +86,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     carbsController.dispose();
     proteinController.dispose();
     fatController.dispose();
-    sugarController.dispose(); // ADDED
     super.dispose();
   }
 
@@ -128,7 +126,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
               carbsController.clear();
               proteinController.clear();
               fatController.clear();
-              sugarController.clear(); // ADDED
               setState(() {
                 _selectedImage = null;
                 _webImage = null;
@@ -291,8 +288,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Text("Protein: ${proteinController.text.trim()}g"),
             if (fatController.text.trim().isNotEmpty)
               Text("Fat: ${fatController.text.trim()}g"),
-            if (sugarController.text.trim().isNotEmpty)
-              Text("Sugar: ${sugarController.text.trim()}g"), // ADDED
             const SizedBox(height: 8),
             Text(
               hasImage ? "✅ With image" : "⚠️ No image",
@@ -400,7 +395,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         'carbs': double.tryParse(carbsController.text.trim()) ?? 0.0,
         'protein': double.tryParse(proteinController.text.trim()) ?? 0.0,
         'fat': double.tryParse(fatController.text.trim()) ?? 0.0,
-        'sugar': double.tryParse(sugarController.text.trim()) ?? 0.0, // ADDED
         'imageUrl': imageUrl,
         'imagePath': imagePath,
         'createdAt': FieldValue.serverTimestamp(),
@@ -416,7 +410,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       carbsController.clear();
       proteinController.clear();
       fatController.clear();
-      sugarController.clear(); // ADDED
 
       if (mounted) {
         setState(() {
@@ -746,36 +739,32 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
           Column(
             children: [
-              // Food Name (full width)
-              _foodFieldFullWidth(Icons.restaurant, 'Food Name*', nameController),
-              const SizedBox(height: 10),
-              
-              // Portion Size | Carbs (side by side)
+              // Food Name | Portion Size (side by side)
               Row(
                 children: [
+                  Expanded(child: _foodField(Icons.restaurant, 'Food Name*', nameController)),
+                  const SizedBox(width: 10),
                   Expanded(child: _foodField(Icons.scale, 'Portion Size*', portionController)),
-                  const SizedBox(width: 10),
+                ],
+              ),
+              const SizedBox(height: 10),
+              
+              // Carbs | Calories (side by side)
+              Row(
+                children: [
                   Expanded(child: _foodField(Icons.bubble_chart, 'Carbs (g)', carbsController, isNumber: true)),
-                ],
-              ),
-              const SizedBox(height: 10),
-              
-              // Calories | Protein (side by side)
-              Row(
-                children: [
+                  const SizedBox(width: 10),
                   Expanded(child: _foodField(Icons.local_fire_department, 'Calories', caloriesController, isNumber: true)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _foodField(Icons.fitness_center, 'Protein (g)', proteinController, isNumber: true)),
                 ],
               ),
               const SizedBox(height: 10),
               
-              // Fat | Sugar (side by side)
+              // Protein | Fat (side by side)
               Row(
                 children: [
-                  Expanded(child: _foodField(Icons.opacity, 'Fat (g)', fatController, isNumber: true)),
+                  Expanded(child: _foodField(Icons.fitness_center, 'Protein (g)', proteinController, isNumber: true)),
                   const SizedBox(width: 10),
-                  Expanded(child: _foodField(Icons.water_drop, 'Sugar (g)', sugarController, isNumber: true)),
+                  Expanded(child: _foodField(Icons.opacity, 'Fat (g)', fatController, isNumber: true)),
                 ],
               ),
             ],
@@ -801,7 +790,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
               value: _selectedDiabetesType,
               items: const [
                 DropdownMenuItem(value: 'Mild', child: Text('🟢 Mild')),
-                DropdownMenuItem(value: 'Moderate', child: Text('🟡 Moderate')),
                 DropdownMenuItem(value: 'Severe', child: Text('🔴 Severe')),
               ],
               onChanged: _isUploading ? null : (val) => setState(() => _selectedDiabetesType = val ?? 'Mild'),
@@ -858,7 +846,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     items: const [
                       DropdownMenuItem(value: 'All', child: Text('📋 All', style: TextStyle(fontSize: 12))),
                       DropdownMenuItem(value: 'Mild', child: Text('🟢 Mild', style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(value: 'Moderate', child: Text('🟡 Moderate', style: TextStyle(fontSize: 12))),
                       DropdownMenuItem(value: 'Severe', child: Text('🔴 Severe', style: TextStyle(fontSize: 12))),
                     ],
                     onChanged: (val) => setState(() => _filterFoodDiabetesType = val!),
@@ -983,11 +970,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
             builder: (context, snap) {
               if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final users = snap.data!.docs;
-              int mild = 0, moderate = 0, severe = 0, notSpecified = 0;
+              int mild = 0, severe = 0, notSpecified = 0;
               for (var user in users) {
                 final type = (user.data() as Map<String, dynamic>)['diabetesType'] ?? 'Not specified';
                 if (type == 'Mild') mild++;
-                else if (type == 'Moderate') moderate++;
                 else if (type == 'Severe') severe++;
                 else notSpecified++;
               }
@@ -1000,8 +986,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     child: Column(children: [
                       _diabetesTypeRow('Mild', mild, Colors.green),
                       const Divider(),
-                      _diabetesTypeRow('Moderate', moderate, Colors.orange),
-                      const Divider(),
                       _diabetesTypeRow('Severe', severe, Colors.red),
                       if (notSpecified > 0) ...[
                         const Divider(),
@@ -1011,7 +995,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _buildDiabetesBarChart(mild, moderate, severe, notSpecified),
+                _buildDiabetesBarChart(mild, severe, notSpecified),
               ]);
             },
           ),
@@ -1160,7 +1144,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     items: const [
                       DropdownMenuItem(value: 'All',          child: Text('📋 All',           style: TextStyle(fontSize: 12))),
                       DropdownMenuItem(value: 'Mild',         child: Text('🟢 Mild',          style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(value: 'Moderate',     child: Text('🟡 Moderate',      style: TextStyle(fontSize: 12))),
                       DropdownMenuItem(value: 'Severe',       child: Text('🔴 Severe',        style: TextStyle(fontSize: 12))),
                       DropdownMenuItem(value: 'Not Specified',child: Text('❓ Not Specified', style: TextStyle(fontSize: 12))),
                     ],
@@ -1336,8 +1319,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildDiabetesBarChart(int mild, int moderate, int severe, int notSpecified) {
-    final total = mild + moderate + severe + notSpecified;
+  Widget _buildDiabetesBarChart(int mild, int severe, int notSpecified) {
+    final total = mild + severe + notSpecified;
     if (total == 0) return const SizedBox();
     return Card(
       elevation: 2,
@@ -1348,8 +1331,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           const Text('Distribution Chart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           _buildBar('Mild', mild, total, Colors.green),
-          const SizedBox(height: 8),
-          _buildBar('Moderate', moderate, total, Colors.orange),
           const SizedBox(height: 8),
           _buildBar('Severe', severe, total, Colors.red),
           if (notSpecified > 0) ...[const SizedBox(height: 8), _buildBar('Not Specified', notSpecified, total, Colors.grey)],

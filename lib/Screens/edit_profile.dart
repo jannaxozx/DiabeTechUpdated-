@@ -17,18 +17,50 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  final _auth = FirebaseAuth.instance;
+  final _auth      = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
 
-  final _nameController = TextEditingController();
-  final _ageController = TextEditingController();
-  final _typeController = TextEditingController();
+  final _nameController   = TextEditingController();
+  final _ageController    = TextEditingController();
+  final _typeController   = TextEditingController();
+  final _heightController = TextEditingController();
+  final _weightController = TextEditingController();
 
-  File? _imageFile;
+  File?     _imageFile;
   Uint8List? _webImage;
-  String? _pickedExtension;
-  String? _existingPhotoUrl;
-  bool _isUploading = false;
+  String?   _pickedExtension;
+  String?   _existingPhotoUrl;
+  bool      _isUploading = false;
+
+  String? _selectedActivityLevel;
+
+  // Activity level data: value, label, icon, color, description, examples
+  final List<Map<String, dynamic>> _activityLevels = [
+    {
+      'value':    'Sedentary',
+      'label':    'Sedentary',
+      'icon':     Icons.weekend,
+      'color':    const Color(0xFF9E9E9E),
+      'desc':     'Little or no physical activity.',
+      'examples': '🛋️ Resting  •  📺 Watching TV  •  💻 Desk work with no movement',
+    },
+    {
+      'value':    'Light',
+      'label':    'Light',
+      'icon':     Icons.directions_walk,
+      'color':    const Color(0xFF42A546),
+      'desc':     'Minimal movement with light physical tasks.',
+      'examples': '🏢 Office work  •  🚗 Driving  •  🧹 Light house chores',
+    },
+    {
+      'value':    'Very Active',
+      'label':    'Very Active',
+      'icon':     Icons.directions_run,
+      'color':    const Color(0xFFE53935),
+      'desc':     'Extensive and rapid movements with high physical demands.',
+      'examples': '🏃 Running  •  🏗️ Heavy labor  •  📦 Carrying heavy objects extensively',
+    },
+  ];
 
   @override
   void initState() {
@@ -41,6 +73,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _ageController.dispose();
     _typeController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
@@ -52,9 +86,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         final doc = await _firestore.collection('users').doc(user.uid).get();
         if (doc.exists) {
           final data = doc.data()!;
-          _ageController.text = (data['age'] ?? '').toString();
-          _typeController.text = data['diabetesType'] ?? '';
-          _existingPhotoUrl = data['photoUrl'] ?? '';
+          _ageController.text    = (data['age']    ?? '').toString();
+          _typeController.text   = data['diabetesType'] ?? '';
+          _heightController.text = (data['height'] ?? '').toString();
+          _weightController.text = (data['weight'] ?? '').toString();
+          _existingPhotoUrl      = data['photoUrl'] ??
+              data['profilePictureUrl'] ?? '';
+          _selectedActivityLevel = data['activityLevel']?.toString();
           if (mounted) setState(() {});
         }
       }
@@ -67,111 +105,72 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
-
+          source: ImageSource.gallery, imageQuality: 85);
       if (picked != null) {
         String ext = 'jpg';
         try {
-          final e = kIsWeb ? p.extension(picked.name) : p.extension(picked.path);
+          final e = kIsWeb
+              ? p.extension(picked.name)
+              : p.extension(picked.path);
           if (e.isNotEmpty) ext = e.replaceFirst('.', '');
         } catch (_) {}
         _pickedExtension = ext.toLowerCase();
-
         if (kIsWeb) {
           final bytes = await picked.readAsBytes();
-          setState(() {
-            _webImage = bytes;
-            _imageFile = null;
-          });
+          setState(() { _webImage = bytes; _imageFile = null; });
         } else {
           setState(() {
-            _imageFile = File(picked.path);
-            _webImage = null;
+            _imageFile = File(picked.path); _webImage = null;
           });
         }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Image selected! Click Save to upload.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('✅ Image selected! Click Save to upload.'),
+          duration: Duration(seconds: 2),
+        ));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error picking image: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error picking image: $e'),
+        backgroundColor: Colors.red,
+      ));
     }
   }
 
   String _mimeForExt(String ext) {
     switch (ext.toLowerCase()) {
-      case 'png':
-        return 'image/png';
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'webp':
-        return 'image/webp';
-      default:
-        return 'image/jpeg';
+      case 'png':  return 'image/png';
+      case 'webp': return 'image/webp';
+      default:     return 'image/jpeg';
     }
   }
 
   Future<Map<String, String>?> _uploadProfileImage(String uid) async {
     try {
-      final client = SupabaseConfig.client;
-      const bucket = 'profile_images'; // ✅ FIXED: Changed from PROFILE_IMAGES to profile_images
-      final ext = (_pickedExtension ?? 'jpg').toLowerCase();
-      final fileName = 'profile_${uid}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final client      = SupabaseConfig.client;
+      const bucket      = 'profile_images';
+      final ext         = (_pickedExtension ?? 'jpg').toLowerCase();
+      final fileName    = 'profile_${uid}_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final contentType = _mimeForExt(ext);
 
-      debugPrint('Uploading to bucket: $bucket');
-      debugPrint('File name: $fileName');
-      debugPrint('Content type: $contentType');
+      final imageBytes = kIsWeb
+          ? _webImage
+          : (_imageFile != null ? await _imageFile!.readAsBytes() : null);
+      if (imageBytes == null) return null;
 
-      if (kIsWeb) {
-        if (_webImage == null) return null;
-        await client.storage.from(bucket).uploadBinary(
-              fileName,
-              _webImage!,
-              fileOptions: FileOptions(
-                contentType: contentType,
-                upsert: true,
-              ),
-            );
-      } else {
-        if (_imageFile == null) return null;
-        final bytes = await _imageFile!.readAsBytes();
-        await client.storage.from(bucket).uploadBinary(
-              fileName,
-              bytes,
-              fileOptions: FileOptions(
-                contentType: contentType,
-                upsert: true,
-              ),
-            );
-      }
+      await client.storage.from(bucket).uploadBinary(
+        fileName, imageBytes,
+        fileOptions: FileOptions(contentType: contentType, upsert: true),
+      );
 
-      // Get public URL (since bucket is public)
       final url = client.storage.from(bucket).getPublicUrl(fileName);
-      debugPrint('Upload successful! URL: $url');
-
       return {'path': fileName, 'url': url};
     } catch (e) {
       debugPrint('Upload error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Upload failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Upload failed: $e'),
+          backgroundColor: Colors.red,
+        ));
       }
       return null;
     }
@@ -182,111 +181,207 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final name = _nameController.text.trim();
 
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No user logged in'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No user logged in'), backgroundColor: Colors.red,
+      ));
       return;
     }
-
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Please enter your name'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('⚠️ Please enter your name'),
+        backgroundColor: Colors.orange,
+      ));
       return;
     }
 
     setState(() => _isUploading = true);
-
     try {
-      String? photoUrl = _existingPhotoUrl;
+      String? photoUrl  = _existingPhotoUrl;
       String? photoPath;
 
-      // Upload new image if selected
       if (_imageFile != null || _webImage != null) {
         final uploaded = await _uploadProfileImage(user.uid);
         if (uploaded != null) {
-          photoUrl = uploaded['url'];
+          photoUrl  = uploaded['url'];
           photoPath = uploaded['path'];
         } else {
-          // Upload failed, but continue saving other data
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('⚠️ Image upload failed, but saving other data...'),
-                backgroundColor: Colors.orange,
-              ),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('⚠️ Image upload failed, saving other data...'),
+              backgroundColor: Colors.orange,
+            ));
           }
         }
       }
 
-      // Update Firebase Auth
       await user.updateDisplayName(name);
       if (photoUrl != null && photoUrl.isNotEmpty) {
-        try {
-          await user.updatePhotoURL(photoUrl);
-        } catch (e) {
-          debugPrint('Error updating photo URL in Auth: $e');
-        }
+        try { await user.updatePhotoURL(photoUrl); } catch (_) {}
       }
 
-      // Update Firestore
-      final data = {
-        'name': name,
-        'age': int.tryParse(_ageController.text) ?? 0,
-        'diabetesType': _typeController.text.trim(),
+      final data = <String, dynamic>{
+        'name':          name,
+        'age':           int.tryParse(_ageController.text) ?? 0,
+        'diabetesType':  _typeController.text.trim(),
+        'height':        double.tryParse(_heightController.text.trim()) ?? 0.0,
+        'weight':        double.tryParse(_weightController.text.trim()) ?? 0.0,
+        'activityLevel': _selectedActivityLevel ?? '',
       };
-      if (photoUrl != null && photoUrl.isNotEmpty) {
-        data['photoUrl'] = photoUrl;
-      }
-      if (photoPath != null) {
-        data['photoPath'] = photoPath;
-      }
+      if (photoUrl  != null && photoUrl.isNotEmpty) data['photoUrl'] = photoUrl;
+      if (photoPath != null) data['photoPath'] = photoPath;
 
       await _firestore.collection('users').doc(user.uid).set(
-            data,
-            SetOptions(merge: true),
-          );
+            data, SetOptions(merge: true));
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Profile updated successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('✅ Profile updated successfully!'),
+          backgroundColor: Colors.green,
+        ));
         Navigator.pop(context);
       }
     } catch (e) {
       debugPrint('Error saving profile: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Failed to save: $e'),
+          backgroundColor: Colors.red,
+        ));
       }
     } finally {
-      if (mounted) {
-        setState(() => _isUploading = false);
-      }
+      if (mounted) setState(() => _isUploading = false);
     }
+  }
+
+  // ── Activity picker bottom sheet ──────────────────────────────────
+  void _showActivityPicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4)),
+            ),
+            const SizedBox(height: 16),
+            const Text('Select Activity Level',
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text(
+              'Choose the level that best describes your daily routine',
+              style: TextStyle(
+                  color: Colors.grey.shade600, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+
+            ..._activityLevels.map((level) {
+              final isSelected =
+                  _selectedActivityLevel == level['value'];
+              final color = level['color'] as Color;
+              return GestureDetector(
+                onTap: () {
+                  setState(() =>
+                      _selectedActivityLevel = level['value'] as String);
+                  Navigator.pop(ctx);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? color.withOpacity(0.1)
+                        : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color:
+                          isSelected ? color : Colors.grey.shade200,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(children: [
+                    Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(level['icon'] as IconData,
+                          color: color, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Text(level['label'] as String,
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    color: isSelected
+                                        ? color
+                                        : Colors.black87)),
+                            if (isSelected) ...[
+                              const SizedBox(width: 6),
+                              Icon(Icons.check_circle,
+                                  color: color, size: 16),
+                            ],
+                          ]),
+                          const SizedBox(height: 3),
+                          Text(level['desc'] as String,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                  height: 1.3)),
+                          const SizedBox(height: 4),
+                          Text(level['examples'] as String,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: color.withOpacity(0.85),
+                                  fontStyle: FontStyle.italic,
+                                  height: 1.4)),
+                        ],
+                      ),
+                    ),
+                  ]),
+                ),
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final selectedActivity = _selectedActivityLevel != null
+        ? _activityLevels.firstWhere(
+            (a) => a['value'] == _selectedActivityLevel,
+            orElse: () => <String, dynamic>{})
+        : <String, dynamic>{};
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7FDF9),
       appBar: AppBar(
         backgroundColor: const Color(0xFF2C6E49),
-        title: const Text("Edit Profile", style: TextStyle(color: Colors.white)),
+        title: const Text('Edit Profile',
+            style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         elevation: 0,
@@ -295,6 +390,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+
+            // ── Avatar ──────────────────────────────────────────────
             Center(
               child: Stack(
                 children: [
@@ -304,20 +401,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: _buildProfileImage(),
                   ),
                   Positioned(
-                    bottom: 0,
-                    right: 4,
+                    bottom: 0, right: 4,
                     child: InkWell(
                       onTap: _isUploading ? null : _pickImage,
                       child: Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: _isUploading ? Colors.grey : const Color(0xFF2C6E49),
+                          color: _isUploading
+                              ? Colors.grey
+                              : const Color(0xFF2C6E49),
                         ),
                         padding: const EdgeInsets.all(8),
                         child: Icon(
-                          _isUploading ? Icons.hourglass_empty : Icons.edit,
-                          color: Colors.white,
-                          size: 20,
+                          _isUploading
+                              ? Icons.hourglass_empty
+                              : Icons.edit,
+                          color: Colors.white, size: 20,
                         ),
                       ),
                     ),
@@ -329,46 +428,171 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             if (_isUploading)
               const Padding(
                 padding: EdgeInsets.only(top: 12),
-                child: Text(
-                  'Uploading...',
-                  style: TextStyle(color: Colors.blue, fontSize: 12),
-                ),
+                child: Text('Uploading...',
+                    style: TextStyle(color: Colors.blue, fontSize: 12)),
               ),
-
             const SizedBox(height: 25),
 
+            // ── Form card ────────────────────────────────────────────
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 6,
-                    offset: Offset(2, 3),
-                  ),
+                      color: Colors.black12,
+                      blurRadius: 6,
+                      offset: Offset(2, 3))
                 ],
               ),
               padding: const EdgeInsets.all(20),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+
+                  // Full Name
                   _buildTextField(
                     controller: _nameController,
-                    label: "Full Name*",
+                    label: 'Full Name*',
                     icon: Icons.person,
                   ),
                   const SizedBox(height: 15),
+
+                  // Age
                   _buildTextField(
                     controller: _ageController,
-                    label: "Age",
+                    label: 'Age',
                     icon: Icons.calendar_today,
                     keyboardType: TextInputType.number,
                   ),
                   const SizedBox(height: 15),
+
+                  // Diabetes Type
                   _buildTextField(
                     controller: _typeController,
-                    label: "Diabetes Type (e.g., Type 1, Type 2)",
+                    label: 'Diabetes Type (e.g., Mild, Severe)',
                     icon: Icons.favorite,
+                  ),
+                  const SizedBox(height: 15),
+
+                  // ── Height + Weight side by side ─────────────────
+                  Row(children: [
+                    Expanded(
+                      child: _buildTextField(
+                        controller: _heightController,
+                        label: 'Height (cm)',
+                        icon: Icons.height,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildTextField(
+                        controller: _weightController,
+                        label: 'Weight (kg)',
+                        icon: Icons.monitor_weight,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 15),
+
+                  // ── Activity Level selector ───────────────────────
+                  const Text('Activity Level',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black54)),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: _isUploading ? null : _showActivityPicker,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selectedActivity.isNotEmpty
+                              ? (selectedActivity['color'] as Color)
+                                  .withOpacity(0.6)
+                              : const Color(0xFF2C6E49),
+                          width: selectedActivity.isNotEmpty ? 1.5 : 1,
+                        ),
+                      ),
+                      child: selectedActivity.isEmpty
+                          ? Row(children: [
+                              const Icon(Icons.directions_run,
+                                  color: Colors.grey, size: 22),
+                              const SizedBox(width: 12),
+                              Text('Select Activity Level',
+                                  style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 15)),
+                              const Spacer(),
+                              Icon(Icons.keyboard_arrow_down,
+                                  color: Colors.grey.shade500),
+                            ])
+                          : Row(children: [
+                              Container(
+                                width: 38, height: 38,
+                                decoration: BoxDecoration(
+                                  color: (selectedActivity['color']
+                                          as Color)
+                                      .withOpacity(0.12),
+                                  borderRadius:
+                                      BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                    selectedActivity['icon'] as IconData,
+                                    color: selectedActivity['color']
+                                        as Color,
+                                    size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      selectedActivity['label'] as String,
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                          color: selectedActivity[
+                                              'color'] as Color),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      selectedActivity['desc'] as String,
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.black54),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      selectedActivity['examples']
+                                          as String,
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: (selectedActivity[
+                                                  'color'] as Color)
+                                              .withOpacity(0.8),
+                                          fontStyle: FontStyle.italic),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.keyboard_arrow_down,
+                                  color: Colors.grey.shade500),
+                            ]),
+                    ),
                   ),
                 ],
               ),
@@ -376,31 +600,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
             const SizedBox(height: 30),
 
+            // ── Save button ──────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: _isUploading ? null : _saveProfile,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _isUploading ? Colors.grey : const Color(0xFF2C6E49),
+                  backgroundColor: _isUploading
+                      ? Colors.grey
+                      : const Color(0xFF2C6E49),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                      borderRadius: BorderRadius.circular(14)),
                   elevation: 5,
                 ),
                 icon: _isUploading
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 20, height: 20,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
+                            strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.save, color: Colors.white),
                 label: Text(
                   _isUploading ? 'Saving...' : 'Save Changes',
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 16),
                 ),
               ),
             ),
@@ -412,46 +635,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _buildProfileImage() {
     if (_webImage != null) {
-      return ClipOval(
-        child: Image.memory(
-          _webImage!,
-          width: 110,
-          height: 110,
-          fit: BoxFit.cover,
-        ),
-      );
+      return ClipOval(child: Image.memory(
+          _webImage!, width: 110, height: 110, fit: BoxFit.cover));
     }
-
     if (_imageFile != null) {
-      return ClipOval(
-        child: Image.file(
-          _imageFile!,
-          width: 110,
-          height: 110,
-          fit: BoxFit.cover,
-        ),
-      );
+      return ClipOval(child: Image.file(
+          _imageFile!, width: 110, height: 110, fit: BoxFit.cover));
     }
-
     if (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty) {
       return ClipOval(
         child: Image.network(
           _existingPhotoUrl!,
-          width: 110,
-          height: 110,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return const Center(
-              child: CircularProgressIndicator(strokeWidth: 2),
-            );
-          },
+          width: 110, height: 110, fit: BoxFit.cover,
+          loadingBuilder: (_, child, p) =>
+              p == null ? child : const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2)),
           errorBuilder: (_, __, ___) =>
               const Icon(Icons.person, size: 60, color: Colors.grey),
         ),
       );
     }
-
     return const Icon(Icons.person, size: 60, color: Colors.grey);
   }
 
@@ -472,15 +675,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         filled: true,
         fillColor: Colors.grey.shade50,
         enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: Color(0xFF2C6E49), width: 1.0),
+          borderSide:
+              const BorderSide(color: Color(0xFF2C6E49), width: 1.0),
           borderRadius: BorderRadius.circular(12),
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: Color(0xFF2C6E49), width: 2.0),
+          borderSide:
+              const BorderSide(color: Color(0xFF2C6E49), width: 2.0),
           borderRadius: BorderRadius.circular(12),
         ),
         disabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.grey.shade300, width: 1.0),
+          borderSide:
+              BorderSide(color: Colors.grey.shade300, width: 1.0),
           borderRadius: BorderRadius.circular(12),
         ),
       ),

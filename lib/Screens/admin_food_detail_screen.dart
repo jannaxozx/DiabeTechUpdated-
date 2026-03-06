@@ -65,10 +65,7 @@ class _AdminFoodDetailScreenState extends State<AdminFoodDetailScreen> {
           // Get color and icon for diabetes type
           Color diabetesTypeColor = Colors.green;
           String diabetesTypeIcon = '🟢';
-          if (diabetesType == 'Moderate') {
-            diabetesTypeColor = Colors.orange;
-            diabetesTypeIcon = '🟡';
-          } else if (diabetesType == 'Severe') {
+          if (diabetesType == 'Severe') {
             diabetesTypeColor = Colors.red;
             diabetesTypeIcon = '🔴';
           }
@@ -206,12 +203,6 @@ class _AdminFoodDetailScreenState extends State<AdminFoodDetailScreen> {
                         '${data['fat'] ?? 0} g',
                         Icons.water_drop,
                         Colors.yellow.shade700,
-                      ),
-                      _detailCard(
-                        'Sugar',
-                        '${data['sugar'] ?? 0} g',
-                        Icons.cake,
-                        Colors.purple,
                       ),
 
                       const SizedBox(height: 20),

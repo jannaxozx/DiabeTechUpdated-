@@ -373,7 +373,6 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: (data['diabetesType'] ?? 'Not specified') == 'Mild' ? Colors.green :
-                                                       (data['diabetesType'] ?? 'Not specified') == 'Moderate' ? Colors.orange :
                                                        (data['diabetesType'] ?? 'Not specified') == 'Severe' ? Colors.red : Colors.grey,
                                         borderRadius: BorderRadius.circular(12),
                                       ),

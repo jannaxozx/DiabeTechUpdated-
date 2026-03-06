@@ -205,17 +205,6 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _sugarController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Sugar (g)',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
