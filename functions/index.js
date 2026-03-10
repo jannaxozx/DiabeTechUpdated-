@@ -26,7 +26,7 @@ exports.identifyFoodWithGemini = functions.https.onCall(async (data, context) =>
       );
     }
 
-    const geminiModel = 'gemini-2.5-flash'; // Already correct
+    const geminiModel = 'gemini-2.5-flash';
     const prompt = `
 Look at this image and identify the food item.
 
@@ -87,7 +87,6 @@ Rules:
       );
     }
 
-    // Strip markdown fences if present
     const raw = text
       .trim()
       .replace(/^```json\s*/gm, '')
@@ -114,15 +113,16 @@ Rules:
   }
 });
 
+// ──────────────────────────────────────────────────────────────────
+// deleteAuthUser — your existing function (kept as-is)
+// ──────────────────────────────────────────────────────────────────
 exports.deleteAuthUser = functions.https.onCall(async (data, context) => {
   const uid = data.uid;
 
   try {
-    // Delete from Firebase Authentication
     await admin.auth().deleteUser(uid);
     console.log(`Deleted user: ${uid}`);
 
-    // Delete user document from Firestore
     await admin.firestore().collection('users').doc(uid).delete();
     console.log(`Deleted user document: ${uid}`);
 
@@ -130,5 +130,111 @@ exports.deleteAuthUser = functions.https.onCall(async (data, context) => {
   } catch (error) {
     console.error("Error deleting user:", error);
     return { success: false, message: error.message };
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────
+// deleteUser — called by ADMIN to delete any user
+// Verifies caller is admin, then deletes Auth + all Firestore data
+// Flutter: FirebaseFunctions.instance.httpsCallable('deleteUser')
+//            .call({'uid': targetUid})
+// ──────────────────────────────────────────────────────────────────
+exports.deleteUser = functions.https.onCall(async (data, context) => {
+  // Must be logged in
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'You must be logged in to perform this action.'
+    );
+  }
+
+  // Caller must be an admin
+  const callerUid = context.auth.uid;
+  const adminDoc  = await admin.firestore().collection('users').doc(callerUid).get();
+  if (!adminDoc.exists || adminDoc.data().role !== 'admin') {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Only admins can delete user accounts.'
+    );
+  }
+
+  const targetUid = data.uid;
+  if (!targetUid) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Missing uid parameter.'
+    );
+  }
+
+  try {
+    // Delete sub-collections
+    const db = admin.firestore();
+    const subCollections = ['foodLogs', 'mealLogs', 'scannedFoods'];
+    for (const sub of subCollections) {
+      const snap = await db.collection('users').doc(targetUid).collection(sub).get();
+      if (!snap.empty) {
+        const batch = db.batch();
+        snap.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+      }
+    }
+
+    // Delete Firestore user document
+    await db.collection('users').doc(targetUid).delete();
+
+    // Delete from Firebase Authentication
+    await admin.auth().deleteUser(targetUid);
+
+    console.log(`✅ Admin ${callerUid} deleted user ${targetUid}`);
+    return { success: true, message: 'User deleted successfully.' };
+
+  } catch (err) {
+    console.error('❌ deleteUser error:', err);
+    throw new functions.https.HttpsError('internal', err.message);
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────
+// deleteOwnAccount — called by the USER themselves
+// Deletes their own Auth account + all their Firestore data
+// Flutter: FirebaseFunctions.instance
+//            .httpsCallable('deleteOwnAccount').call()
+// ──────────────────────────────────────────────────────────────────
+exports.deleteOwnAccount = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'You must be logged in to delete your account.'
+    );
+  }
+
+  const uid = context.auth.uid;
+
+  try {
+    const db = admin.firestore();
+
+    // Delete sub-collections
+    const subCollections = ['foodLogs', 'mealLogs', 'scannedFoods'];
+    for (const sub of subCollections) {
+      const snap = await db.collection('users').doc(uid).collection(sub).get();
+      if (!snap.empty) {
+        const batch = db.batch();
+        snap.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+      }
+    }
+
+    // Delete Firestore document
+    await db.collection('users').doc(uid).delete();
+
+    // Delete from Firebase Auth
+    await admin.auth().deleteUser(uid);
+
+    console.log(`✅ User ${uid} deleted their own account.`);
+    return { success: true };
+
+  } catch (err) {
+    console.error('❌ deleteOwnAccount error:', err);
+    throw new functions.https.HttpsError('internal', err.message);
   }
 });

@@ -16,11 +16,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _emailController    = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscureText = true;
-  bool _isLoading = false;
-  bool _rememberMe = false;
+  bool _isLoading   = false;
+  bool _rememberMe  = false;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
@@ -29,12 +29,14 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadRemembered();
   }
 
-  // ---------------- Email Login ----------------
+  // ── Email Login ────────────────────────────────────────────────────────
   Future<void> _loginUser() async {
+    if (_isLoading) return;
     setState(() => _isLoading = true);
+
     try {
       final userCredential = await _auth.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
+        email:    _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
@@ -46,54 +48,100 @@ class _LoginScreenState extends State<LoginScreen> {
           .doc(user.uid)
           .get();
 
-      // Ensure user has role
+      // ── KEY CHECK: If Firestore doc is gone, admin deleted this account ──
+      // Sign them out immediately and show a clear error message.
       if (!userDoc.exists) {
-        await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
-          "email": user.email,
-          "role": "user",
-          "createdAt": Timestamp.now(),
-        });
+        await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '❌ This account has been deleted. Please contact support.',
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+        setState(() => _isLoading = false);
+        return;
       }
 
-      String role =
+      final String role =
           (userDoc.data()?['role'] ?? 'user').toString().toLowerCase();
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Login Successful as $role")),
       );
 
-      // Save remember me preference after successful login
       await _saveRemembered();
 
-      // Navigate based on role
       if (role == "admin") {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const AdminDashboard()),
-        );
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => const AdminDashboard()));
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const Dashboard()),
-        );
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (_) => const Dashboard()));
       }
-    } catch (e) {
+
+    } on FirebaseAuthException catch (e) {
+      // ── Specific Firebase Auth error codes ───────────────────────────
+      // user-not-found  → account was deleted from Firebase Auth by admin
+      // user-disabled   → account was disabled in Firebase console
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+        case 'user-disabled':
+          message =
+              '❌ This account has been deleted or disabled. '
+              'Please contact support.';
+          break;
+        case 'wrong-password':
+        case 'invalid-credential':
+          message = '❌ Incorrect email or password. Please try again.';
+          break;
+        case 'invalid-email':
+          message = '❌ Please enter a valid email address.';
+          break;
+        case 'too-many-requests':
+          message =
+              '❌ Too many failed attempts. Please wait a moment and try again.';
+          break;
+        case 'network-request-failed':
+          message = '❌ No internet connection. Please check your network.';
+          break;
+        default:
+          message = e.message ?? '❌ Login failed. Please try again.';
+      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Login failed: $e")),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Login failed: $e"),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ---------------- Remember me helpers ----------------
+  // ── Remember-me helpers ────────────────────────────────────────────────
   Future<void> _loadRemembered() async {
     final prefs = await SharedPreferences.getInstance();
     final remembered = prefs.getBool('rememberMe') ?? false;
     if (remembered) {
       setState(() {
         _rememberMe = true;
-        _emailController.text = prefs.getString('savedEmail') ?? '';
+        _emailController.text    = prefs.getString('savedEmail')    ?? '';
         _passwordController.text = prefs.getString('savedPassword') ?? '';
       });
     }
@@ -103,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (_rememberMe) {
       await prefs.setBool('rememberMe', true);
-      await prefs.setString('savedEmail', _emailController.text.trim());
+      await prefs.setString('savedEmail',    _emailController.text.trim());
       await prefs.setString('savedPassword', _passwordController.text);
     } else {
       await prefs.remove('rememberMe');
@@ -129,8 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 60),
                 Center(
                   child: SizedBox(
-                    height: 150,
-                    width: 150,
+                    height: 150, width: 150,
                     child: Image.asset("assets/images/DiabeTechLogo.png"),
                   ),
                 ),
@@ -141,13 +188,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.all(15),
                   child: TextField(
                     controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white,
+                      filled: true, fillColor: Colors.white,
                       labelText: 'Email',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
@@ -159,66 +204,49 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _passwordController,
                     obscureText: _obscureText,
                     decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white,
+                      filled: true, fillColor: Colors.white,
                       labelText: 'Password',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscureText
-                              ? Icons.visibility_off
-                              : Icons.visibility,
+                          _obscureText ? Icons.visibility_off : Icons.visibility,
                           color: Colors.black,
                         ),
-                        onPressed: () =>
-                            setState(() => _obscureText = !_obscureText),
+                        onPressed: () => setState(() => _obscureText = !_obscureText),
                       ),
                     ),
                   ),
                 ),
 
-                // Remember me checkbox and Forgot Password
+                // Remember me + Forgot Password
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Left side - Remember Me
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 15),
                         child: CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
                           value: _rememberMe,
-                          onChanged: (val) =>
-                              setState(() => _rememberMe = val ?? false),
+                          onChanged: (val) => setState(() => _rememberMe = val ?? false),
                           title: const Text('Remember me'),
                           controlAffinity: ListTileControlAffinity.leading,
                         ),
                       ),
                     ),
-                    
-                    // Right side - Forgot Password
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 15),
                       child: InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const PasswordResetScreen(),
-                            ),
-                          );
-                        },
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const PasswordResetScreen())),
                         child: const Text(
                           "Forgot Password?",
                           style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF2C6E49),
-                              decoration: TextDecoration.underline,
-                              decorationColor: Color(0xFF2C6E49),
-                              decorationThickness: 2.0,
+                            fontSize: 16, fontWeight: FontWeight.w600,
+                            color: Color(0xFF2C6E49),
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFF2C6E49),
+                            decorationThickness: 2.0,
                           ),
                         ),
                       ),
@@ -241,13 +269,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: Center(
                         child: _isLoading
-                            ? const CircularProgressIndicator(
-                                color: Colors.white)
-                            : const Text(
-                                "LOGIN",
-                                style: TextStyle(
-                                    fontSize: 16, color: Colors.white),
-                              ),
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text("LOGIN",
+                                style: TextStyle(fontSize: 16, color: Colors.white)),
                       ),
                     ),
                   ),
@@ -258,33 +282,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Divider
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 1,
-                          color: Colors.grey.shade300,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          "OR",
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Container(
-                          height: 1,
-                          color: Colors.grey.shade300,
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: Row(children: [
+                    Expanded(child: Container(height: 1, color: Colors.grey.shade300)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text("OR",
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w500)),
+                    ),
+                    Expanded(child: Container(height: 1, color: Colors.grey.shade300)),
+                  ]),
                 ),
 
                 const SizedBox(height: 20),
@@ -297,19 +303,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: TextStyle(fontSize: 15, color: Colors.black)),
                     const SizedBox(width: 4),
                     GestureDetector(
-                      onTap: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (_) => const Register()),
-                        );
-                      },
-                      child: const Text(
-                        "Register Now",
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black),
-                      ),
+                      onTap: () => Navigator.pushReplacement(context,
+                          MaterialPageRoute(builder: (_) => const Register())),
+                      child: const Text("Register Now",
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
                     ),
                   ],
                 ),

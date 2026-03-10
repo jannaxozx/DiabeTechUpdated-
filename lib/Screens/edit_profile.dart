@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:diabetechapp/supabase_config.dart';
+import 'package:diabetechapp/Screens/log_in.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({Key? key}) : super(key: key);
@@ -51,6 +52,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       'color':    const Color(0xFF42A546),
       'desc':     'Minimal movement with light physical tasks.',
       'examples': '🏢 Office work  •  🚗 Driving  •  🧹 Light house chores',
+    },
+    {
+      'value':    'Moderate',
+      'label':    'Moderate',
+      'icon':     Icons.fitness_center,
+      'color':    const Color(0xFF2196F3),
+      'desc':     'Regular movement involving some physical effort.',
+      'examples': '📦 Carrying heavy objects  •  🚶 Brisk walking  •  🏋️ Light exercise',
     },
     {
       'value':    'Very Active',
@@ -627,10 +636,170 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
             ),
+
+            const SizedBox(height: 16),
+
+            // ── Delete Account button ────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isUploading ? null : _deleteAccount,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.delete_forever, color: Colors.red),
+                label: const Text(
+                  'Delete My Account',
+                  style: TextStyle(color: Colors.red, fontSize: 16),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),
     );
+  }
+
+
+  // ── Delete own account ────────────────────────────────────────────────
+  Future<void> _deleteAccount() async {
+    // Step 1: Confirm
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.red, size: 26),
+          SizedBox(width: 8),
+          Text('Delete Account',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Are you sure you want to permanently delete your account?',
+              style: TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: const Text(
+                '⚠️ This will permanently delete your account and ALL your data '
+                '(meal logs, scan history, profile). This cannot be undone.',
+                style: TextStyle(
+                    fontSize: 12, color: Colors.red, height: 1.5),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete My Account',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    // Step 2: Delete everything
+    setState(() => _isUploading = true);
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+      final uid = user.uid;
+
+      // Delete Firestore sub-collections
+      for (final sub in ['foodLogs', 'mealLogs', 'scannedFoods']) {
+        final snap = await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection(sub)
+            .get();
+        for (final doc in snap.docs) {
+          await doc.reference.delete();
+        }
+      }
+
+      // Delete Firestore user document
+      await _firestore.collection('users').doc(uid).delete();
+
+      // Delete Firebase Auth account directly
+      await user.delete();
+
+      // Sign out to clear any local session
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      // Force navigate to login and clear entire navigation stack
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploading = false);
+      if (e.code == 'requires-recent-login') {
+        // Session too old — sign out and force re-login first
+        await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+        // Show message on login screen
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Please log in again to confirm account deletion.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error: ${e.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
   }
 
   Widget _buildProfileImage() {

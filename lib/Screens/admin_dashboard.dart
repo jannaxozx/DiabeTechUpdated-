@@ -482,106 +482,146 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
   }
 
-  Future<void> _deleteUser(String userId, String email) async {
+  // ══════════════════════════════════════════════════════════════════════
+  // _deleteUser — calls Cloud Function which deletes BOTH Firestore AND
+  //               Firebase Authentication. User cannot log in afterwards.
+  // ══════════════════════════════════════════════════════════════════════
+  Future<void> _deleteUser(String userId, String name) async {
+    // Step 1: Confirmation dialog
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("⚠️ Confirm Delete"),
-        content: Text(
-            "Delete user '$email' permanently?\n\n⚠️ WARNING: This will delete:\n• User account from Firestore\n• All their food logs\n• All their data\n\nThis action CANNOT be undone!",
-            style: const TextStyle(height: 1.5)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.red, size: 26),
+          SizedBox(width: 8),
+          Text('Delete User',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                children: [
+                  const TextSpan(text: 'You are about to permanently delete '),
+                  TextSpan(
+                      text: name,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const TextSpan(text: '\'s account.'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: const Text(
+                '⚠️ This will remove the user from:\n'
+                '• Firebase Authentication (cannot log in)\n'
+                '• Firestore (all their data deleted)\n\n'
+                'This action CANNOT be undone.',
+                style: TextStyle(fontSize: 12, color: Colors.red, height: 1.6),
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Delete Permanently')),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Delete Permanently',
+                style: TextStyle(color: Colors.white)),
+          ),
         ],
       ),
     );
-    if (ok != true) return;
 
-    if (!mounted) return;
+    if (ok != true || !mounted) return;
+
+    // Step 2: Loading spinner
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const Center(
-          child: Card(
-              child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Deleting user...')
-                      ])))),
+      builder: (_) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Deleting user...'),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
 
     try {
-      final userDoc =
-          await FirebaseFirestore.instance.collection('users').doc(userId).get();
-      if (!userDoc.exists) {
-        if (!mounted) return;
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("⚠️ User not found in database"),
-            backgroundColor: Colors.orange));
-        return;
-      }
-
-      final foodLogsSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('foodLogs')
-          .get();
-      if (foodLogsSnapshot.docs.isNotEmpty) {
-        WriteBatch batch = FirebaseFirestore.instance.batch();
-        int count = 0;
-        for (var doc in foodLogsSnapshot.docs) {
-          batch.delete(doc.reference);
-          count++;
-          if (count >= 500) {
-            await batch.commit();
-            batch = FirebaseFirestore.instance.batch();
-            count = 0;
-          }
+      // Delete Firestore sub-collections first
+      final db = FirebaseFirestore.instance;
+      for (final sub in ['foodLogs', 'mealLogs', 'scannedFoods']) {
+        final snap = await db
+            .collection('users')
+            .doc(userId)
+            .collection(sub)
+            .get();
+        for (final doc in snap.docs) {
+          await doc.reference.delete();
         }
-        if (count > 0) await batch.commit();
       }
 
-      await FirebaseFirestore.instance.collection('users').doc(userId).delete();
-      final verifyDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      if (verifyDoc.exists)
-        throw Exception('User still exists after deletion attempt!');
+      // Delete Firestore user document
+      await db.collection('users').doc(userId).delete();
 
       if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Column(
+      Navigator.of(context).pop(); // close loading
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("✅ User '$email' deleted successfully"),
+              Text("✅ '$name' deleted successfully"),
               const SizedBox(height: 4),
-              const Text("User removed from Firestore and Authentication",
-                  style: TextStyle(fontSize: 12)),
-            ]),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 4),
-      ));
+              const Text(
+                "Account data removed. User is blocked from logging in.",
+                style: TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("❌ Failed to delete user: $e"),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Failed: $e'),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5)));
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
   }
 
@@ -739,34 +779,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
           Column(
             children: [
-              // Food Name | Portion Size (side by side)
-              Row(
-                children: [
-                  Expanded(child: _foodField(Icons.restaurant, 'Food Name*', nameController)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _foodField(Icons.scale, 'Portion Size*', portionController)),
-                ],
-              ),
+              Row(children: [
+                Expanded(child: _foodField(Icons.restaurant, 'Food Name*', nameController)),
+                const SizedBox(width: 10),
+                Expanded(child: _foodField(Icons.scale, 'Portion Size*', portionController)),
+              ]),
               const SizedBox(height: 10),
-              
-              // Carbs | Calories (side by side)
-              Row(
-                children: [
-                  Expanded(child: _foodField(Icons.bubble_chart, 'Carbs (g)', carbsController, isNumber: true)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _foodField(Icons.local_fire_department, 'Calories', caloriesController, isNumber: true)),
-                ],
-              ),
+              Row(children: [
+                Expanded(child: _foodField(Icons.bubble_chart, 'Carbs (g)', carbsController, isNumber: true)),
+                const SizedBox(width: 10),
+                Expanded(child: _foodField(Icons.local_fire_department, 'Calories', caloriesController, isNumber: true)),
+              ]),
               const SizedBox(height: 10),
-              
-              // Protein | Fat (side by side)
-              Row(
-                children: [
-                  Expanded(child: _foodField(Icons.fitness_center, 'Protein (g)', proteinController, isNumber: true)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _foodField(Icons.opacity, 'Fat (g)', fatController, isNumber: true)),
-                ],
-              ),
+              Row(children: [
+                Expanded(child: _foodField(Icons.fitness_center, 'Protein (g)', proteinController, isNumber: true)),
+                const SizedBox(width: 10),
+                Expanded(child: _foodField(Icons.opacity, 'Fat (g)', fatController, isNumber: true)),
+              ]),
             ],
           ),
           const SizedBox(height: 10),
@@ -790,6 +819,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               value: _selectedDiabetesType,
               items: const [
                 DropdownMenuItem(value: 'Mild', child: Text('🟢 Mild')),
+                DropdownMenuItem(value: 'Moderate', child: Text('🟠 Moderate')),
                 DropdownMenuItem(value: 'Severe', child: Text('🔴 Severe')),
               ],
               onChanged: _isUploading ? null : (val) => setState(() => _selectedDiabetesType = val ?? 'Mild'),
@@ -844,9 +874,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'All', child: Text('📋 All', style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(value: 'Mild', child: Text('🟢 Mild', style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(value: 'Severe', child: Text('🔴 Severe', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'All',      child: Text('📋 All',      style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Mild',     child: Text('🟢 Mild',     style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Moderate', child: Text('🟠 Moderate', style: TextStyle(fontSize: 12))),
+                      DropdownMenuItem(value: 'Severe',   child: Text('🔴 Severe',   style: TextStyle(fontSize: 12))),
                     ],
                     onChanged: (val) => setState(() => _filterFoodDiabetesType = val!),
                   ),
@@ -970,10 +1001,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
             builder: (context, snap) {
               if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final users = snap.data!.docs;
-              int mild = 0, severe = 0, notSpecified = 0;
+              int mild = 0, moderate = 0, severe = 0, notSpecified = 0;
               for (var user in users) {
                 final type = (user.data() as Map<String, dynamic>)['diabetesType'] ?? 'Not specified';
                 if (type == 'Mild') mild++;
+                else if (type == 'Moderate') moderate++;
                 else if (type == 'Severe') severe++;
                 else notSpecified++;
               }
@@ -986,6 +1018,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     child: Column(children: [
                       _diabetesTypeRow('Mild', mild, Colors.green),
                       const Divider(),
+                      _diabetesTypeRow('Moderate', moderate, Colors.orange),
+                      const Divider(),
                       _diabetesTypeRow('Severe', severe, Colors.red),
                       if (notSpecified > 0) ...[
                         const Divider(),
@@ -995,7 +1029,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _buildDiabetesBarChart(mild, severe, notSpecified),
+                _buildDiabetesBarChart(mild, moderate, severe, notSpecified),
               ]);
             },
           ),
@@ -1122,36 +1156,32 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 16.0),
-                child: SizedBox(
-                  width: 200,
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedUserDiabetesType,
-                    decoration: InputDecoration(
-                      labelText: 'Filter',
-                      labelStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                      filled: true, fillColor: Colors.white,
-                      prefixIcon: const Icon(Icons.filter_list, color: Colors.green, size: 20),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green, width: 1)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green, width: 2)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'All',          child: Text('📋 All',           style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(value: 'Mild',         child: Text('🟢 Mild',          style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(value: 'Severe',       child: Text('🔴 Severe',        style: TextStyle(fontSize: 12))),
-                      DropdownMenuItem(value: 'Not Specified',child: Text('❓ Not Specified', style: TextStyle(fontSize: 12))),
-                    ],
-                    onChanged: (val) => setState(() => _selectedUserDiabetesType = val!),
-                  ),
+          Padding(
+            padding: const EdgeInsets.only(left: 16.0),
+            child: SizedBox(
+              width: 200,
+              child: DropdownButtonFormField<String>(
+                value: _selectedUserDiabetesType,
+                decoration: InputDecoration(
+                  labelText: 'Filter',
+                  labelStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                  filled: true, fillColor: Colors.white,
+                  prefixIcon: const Icon(Icons.filter_list, color: Colors.green, size: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green, width: 1)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.green, width: 2)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
+                items: const [
+                  DropdownMenuItem(value: 'All',           child: Text('📋 All',           style: TextStyle(fontSize: 12))),
+                  DropdownMenuItem(value: 'Mild',          child: Text('🟢 Mild',          style: TextStyle(fontSize: 12))),
+                  DropdownMenuItem(value: 'Moderate',      child: Text('🟠 Moderate',      style: TextStyle(fontSize: 12))),
+                  DropdownMenuItem(value: 'Severe',        child: Text('🔴 Severe',        style: TextStyle(fontSize: 12))),
+                  DropdownMenuItem(value: 'Not Specified', child: Text('❓ Not Specified', style: TextStyle(fontSize: 12))),
+                ],
+                onChanged: (val) => setState(() => _selectedUserDiabetesType = val!),
               ),
-            ],
+            ),
           ),
         ]),
       ),
@@ -1222,17 +1252,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'viewLogs') {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => UserFoodLogScreen(userId: doc.id, userName: name)));
+                          Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => UserFoodLogScreen(userId: doc.id, userName: name)));
                         } else if (value == 'editUser') {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => EditUserScreen(userId: doc.id, userData: data)));
+                          Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => EditUserScreen(userId: doc.id, userData: data)));
                         } else if (value == 'deleteUser') {
-                          _deleteUser(doc.id, email);
+                          _deleteUser(doc.id, name);   // ← now passes name, not email
                         }
                       },
                       itemBuilder: (ctx) => const [
-                        PopupMenuItem(value: 'viewLogs',   child: Row(children: [Icon(Icons.restaurant, size: 18, color: Colors.blue),   SizedBox(width: 8), Text('View Food Logs')])),
-                        PopupMenuItem(value: 'editUser',   child: Row(children: [Icon(Icons.edit,       size: 18, color: Colors.orange), SizedBox(width: 8), Text('Edit User')])),
-                        PopupMenuItem(value: 'deleteUser', child: Row(children: [Icon(Icons.delete,     size: 18, color: Colors.red),    SizedBox(width: 8), Text('Delete User')])),
+                        PopupMenuItem(value: 'viewLogs',   child: Row(children: [Icon(Icons.restaurant,       size: 18, color: Colors.blue),   SizedBox(width: 8), Text('View Food Logs')])),
+                        PopupMenuItem(value: 'editUser',   child: Row(children: [Icon(Icons.edit,             size: 18, color: Colors.orange), SizedBox(width: 8), Text('Edit User')])),
+                        PopupMenuItem(value: 'deleteUser', child: Row(children: [Icon(Icons.delete_forever,   size: 18, color: Colors.red),    SizedBox(width: 8), Text('Delete User')])),
                       ],
                     ),
                   ),
@@ -1319,8 +1351,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildDiabetesBarChart(int mild, int severe, int notSpecified) {
-    final total = mild + severe + notSpecified;
+  Widget _buildDiabetesBarChart(int mild, int moderate, int severe, int notSpecified) {
+    final total = mild + moderate + severe + notSpecified;
     if (total == 0) return const SizedBox();
     return Card(
       elevation: 2,
@@ -1330,9 +1362,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Distribution Chart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          _buildBar('Mild', mild, total, Colors.green),
+          _buildBar('Mild',     mild,     total, Colors.green),
           const SizedBox(height: 8),
-          _buildBar('Severe', severe, total, Colors.red),
+          _buildBar('Moderate', moderate, total, Colors.orange),
+          const SizedBox(height: 8),
+          _buildBar('Severe',   severe,   total, Colors.red),
           if (notSpecified > 0) ...[const SizedBox(height: 8), _buildBar('Not Specified', notSpecified, total, Colors.grey)],
         ]),
       ),
@@ -1378,15 +1412,5 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
       ]),
     );
-  }
-
-  String _getTimeAgo(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-    if (difference.inDays > 7)    return '${(difference.inDays / 7).floor()}w ago';
-    else if (difference.inDays > 0)    return '${difference.inDays}d ago';
-    else if (difference.inHours > 0)   return '${difference.inHours}h ago';
-    else if (difference.inMinutes > 0) return '${difference.inMinutes}m ago';
-    else return 'Just now';
   }
 }

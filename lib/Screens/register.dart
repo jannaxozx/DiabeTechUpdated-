@@ -955,7 +955,7 @@ class _RegisterState extends State<Register> {
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: _isLoading
-                                    ? Colors.grey
+                                    ? Colors.black12
                                     : Colors.black)),
                       ),
                     ],
