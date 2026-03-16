@@ -54,14 +54,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       'examples': '🏢 Office work  •  🚗 Driving  •  🧹 Light house chores',
     },
     {
-      'value':    'Moderate',
-      'label':    'Moderate',
-      'icon':     Icons.fitness_center,
-      'color':    const Color(0xFF2196F3),
-      'desc':     'Regular movement involving some physical effort.',
-      'examples': '📦 Carrying heavy objects  •  🚶 Brisk walking  •  🏋️ Light exercise',
-    },
-    {
       'value':    'Very Active',
       'label':    'Very Active',
       'icon':     Icons.directions_run,

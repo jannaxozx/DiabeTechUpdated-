@@ -32,7 +32,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   List<Map<String, dynamic>> _allFoodDocs = [];
   String? _capturedImagePath; // Store the captured photo path
 
-  static const String _geminiApiKey = 'AIzaSyBlWu6boMeidFAzSMMMlBJoXuk-ZBJowHc';
+  static const String _geminiApiKey = 'AIzaSyD0nOIqg6SqzDrTM-exh_HcP_ToEXY7JGw';
   static const String _geminiModel  = 'gemini-2.5-flash';
 
   @override
@@ -638,7 +638,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
 
           // ── 2. Scanner overlay (only when camera is live) ─────────────
           if (_isCameraReady && !_cameraPermDenied)
-            _buildScanOverlay(context),
+            _buildScanFrame(),
 
           // ── 3. Top bar ────────────────────────────────────────────────
           Positioned(
@@ -769,12 +769,13 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
     );
   }
 
-  // ── Top icon button ───────────────────────────────────────────────────
+  // ── UI Helper Methods ─────────────────────────────────────────────────────
   Widget _topBtn(IconData icon, VoidCallback onTap, {bool active = false}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(9),
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
           color: active
               ? Colors.yellow.withOpacity(0.25)
@@ -807,27 +808,21 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
                     style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
-                        fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center),
+                        fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                Text(
-                  'Please allow camera access to use the food scanner.',
-                  style:
-                      TextStyle(color: Colors.white54, fontSize: 14, height: 1.5),
-                  textAlign: TextAlign.center,
-                ),
+                const Text('Food scanner needs camera access to identify your meals.',
+                    style: TextStyle(color: Colors.white60, fontSize: 14),
+                    textAlign: TextAlign.center),
                 const SizedBox(height: 24),
-                ElevatedButton(
+                ElevatedButton.icon(
+                  onPressed: () => openAppSettings(),
+                  icon: const Icon(Icons.settings, color: Colors.white),
+                  label: const Text('Open Settings',
+                      style: TextStyle(color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2C6E49),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 28, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
-                  onPressed: () => openAppSettings(),
-                  child: const Text('Open Settings',
-                      style: TextStyle(color: Colors.white)),
                 ),
               ],
             ),
@@ -837,12 +832,12 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
     );
   }
 
-  // ── Scanner frame overlay ─────────────────────────────────────────────
-  Widget _buildScanOverlay(BuildContext context) {
-    final size       = MediaQuery.of(context).size;
-    final frameSize  = size.width * 0.72;
-    final frameLeft  = (size.width - frameSize) / 2;
-    final frameTop   = (size.height - frameSize) / 2 - 50;
+  // ── Scan frame overlay ───────────────────────────────────────────────────
+  Widget _buildScanFrame() {
+    final size = MediaQuery.of(context).size;
+    final frameSize = size.width * 0.65;
+    final frameTop = size.height * 0.25;
+    final frameLeft = (size.width - frameSize) / 2;
 
     return Stack(
       children: [

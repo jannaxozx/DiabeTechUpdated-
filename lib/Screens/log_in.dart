@@ -76,6 +76,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await _saveRemembered();
 
+      // ── Write lastLogin timestamp so admin can track active users ──
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({'lastLogin': FieldValue.serverTimestamp()});
+
       if (role == "admin") {
         Navigator.pushReplacement(context,
             MaterialPageRoute(builder: (_) => const AdminDashboard()));
