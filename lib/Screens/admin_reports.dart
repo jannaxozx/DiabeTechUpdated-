@@ -164,8 +164,9 @@ class _AdminReportsScreenState extends State<AdminReportsScreen>
       if (cat == 'do') safe++;
       else if (cat == 'dont') avoid++;
       else unk++;
-      final fn  = (d['food'] ?? d['foodName'] ?? 'Unknown').toString();
-      food[fn]  = (food[fn] ?? 0) + 1;
+      final fn  = (d['food'] ?? d['foodName'] ?? '').toString().trim();
+      if (fn.isNotEmpty && fn.toLowerCase() != 'unknown')
+        food[fn] = (food[fn] ?? 0) + 1;
       final ts  = (d['timestamp'] as Timestamp?)?.toDate();
       if (ts != null && !ts.isBefore(week)) {
         final k = _dk(ts); day[k] = (day[k] ?? 0) + 1;
@@ -546,7 +547,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen>
           children: [
 
         Row(children: [
-          Expanded(child: _kpi('Total', '$_totalScans',
+          Expanded(child: _kpi('Total', '${_safeScans + _avoidScans}',
               Icons.qr_code_scanner_rounded, _teal, _tealPal)),
           const SizedBox(width: 10),
           Expanded(child: _kpi('Safe', '$_safeScans',
@@ -560,33 +561,28 @@ class _AdminReportsScreenState extends State<AdminReportsScreen>
         _sectionLabel('Scan Result Breakdown'),
         const SizedBox(height: 10),
         _card(Column(children: [
-          _hBar('Safe (Do)',       _safeScans,   _totalScans, _green),
+          _hBar('Safe (Do)',       _safeScans,   _safeScans + _avoidScans, _green),
           const SizedBox(height: 16),
-          _hBar("Avoid (Don't)",  _avoidScans,  _totalScans, _red),
-          if (_unknownScans > 0) ...[
-            const SizedBox(height: 16),
-            _hBar('Not in Database', _unknownScans, _totalScans, _amber),
-          ],
+          _hBar("Avoid (Don't)",  _avoidScans,  _safeScans + _avoidScans, _red),
           const SizedBox(height: 14),
           _legendRow([
-            _dot(_green, 'Safe    ${_pct(_safeScans, _totalScans)}'),
-            _dot(_red,   'Avoid   ${_pct(_avoidScans, _totalScans)}'),
-            if (_unknownScans > 0)
-              _dot(_amber, 'Unknown ${_pct(_unknownScans, _totalScans)}'),
+            _dot(_green, 'Safe    ${_pct(_safeScans, _safeScans + _avoidScans)}'),
+            _dot(_red,   'Avoid   ${_pct(_avoidScans, _safeScans + _avoidScans)}'),
           ]),
         ])),
         const SizedBox(height: 20),
 
         _sectionLabel('Top 5 Most Scanned Foods'),
         const SizedBox(height: 10),
-        _card(_topFoodsScanned.isEmpty
-            ? _empty()
-            : Column(children: () {
-                final e = _topFoodsScanned.entries.toList();
-                return List.generate(e.length, (i) =>
-                    _rankRow(i + 1, e[i].key, e[i].value,
-                        _totalScans, _teal));
-              }())),
+        _card(() {
+            final filtered = _topFoodsScanned.entries
+                .where((e) => e.key.toLowerCase() != 'unknown')
+                .toList();
+            if (filtered.isEmpty) return _empty();
+            return Column(children: List.generate(filtered.length, (i) =>
+                _rankRow(i + 1, filtered[i].key, filtered[i].value,
+                    _safeScans + _avoidScans, _teal)));
+          }()),
         const SizedBox(height: 20),
 
         _sectionLabel('Activity — Last 7 Days'),
@@ -595,49 +591,6 @@ class _AdminReportsScreenState extends State<AdminReportsScreen>
             ? _empty()
             : _barChart(days, _scansPerDay, _teal)),
 
-        if (_unknownScans > 0) ...[
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _amberPal,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _amber.withOpacity(0.35)),
-            ),
-            child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _amber.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: const Icon(Icons.tips_and_updates_rounded,
-                    color: _amber, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  const Text('Improve Coverage',
-                      style: TextStyle(
-                          color: _grey1,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13)),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$_unknownScans scan${_unknownScans == 1 ? '' : 's'} '
-                    'had no database match. Add these foods to the '
-                    'Food Rules to improve scan accuracy.',
-                    style: const TextStyle(
-                        color: _grey2, fontSize: 12, height: 1.5)),
-                ]),
-              ),
-            ]),
-          ),
-        ],
         const SizedBox(height: 8),
       ]),
     );

@@ -412,608 +412,866 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // BUILD
+  // ═══════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     if (user == null) {
-      return const Scaffold(body: Center(child: Text('No user is logged in.')));
+      return const Scaffold(body: Center(child: Text('No user logged in.')));
     }
-
-    final name           = user?.displayName ?? 'User';
-    final screenWidth    = MediaQuery.of(context).size.width;
-    final isSmallScreen  = screenWidth < 360;
-    final isMediumScreen = screenWidth >= 360 && screenWidth < 400;
-
+    final name = user?.displayName ?? 'User';
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FDF9),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            await _fetchUserProfile();
-            await _fetchDashboardData();
-          },
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.all(isSmallScreen ? 12 : isMediumScreen ? 16 : 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-
-                // ── HEADER ──────────────────────────────────────────
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(children: [
-                      GestureDetector(
-                        onTap: () => Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => const EditProfileScreen()))
-                            .then((_) { _fetchUserProfile(); _fetchDashboardData(); }),
-                        child: Container(
-                          width:  isSmallScreen ? 45 : isMediumScreen ? 55 : 60,
-                          height: isSmallScreen ? 45 : isMediumScreen ? 55 : 60,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF2C6E49), width: 3),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))],
-                          ),
-                          child: ClipOval(
-                            child: profilePictureUrl != null && profilePictureUrl!.isNotEmpty
-                                ? Image.network(profilePictureUrl!, fit: BoxFit.cover,
-                                    loadingBuilder: (_, child, p) => p == null ? child
-                                        : Container(color: Colors.grey.shade200,
-                                            child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
-                                    errorBuilder: (_, __, ___) => Container(color: const Color(0xFF2C6E49),
-                                        child: Icon(Icons.person, color: Colors.white, size: isSmallScreen ? 25 : 35)))
-                                : Container(color: const Color(0xFF2C6E49),
-                                    child: Icon(Icons.person, color: Colors.white, size: isSmallScreen ? 25 : 35)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
+      backgroundColor: _bg,
+      body: Column(children: [
+        // ── Gradient header ───────────────────────────────────────────
+        _buildHeader(name),
+        // ── Body ─────────────────────────────────────────────────────
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              await _fetchUserProfile();
+              await _fetchDashboardData();
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              child: Column(children: [
+                // Curved body
+                Transform.translate(
+                  offset: const Offset(0, -20),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: _bg,
+                      borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24)),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                    child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Hello, $name 👋',
-                              style: TextStyle(
-                                  fontSize: isSmallScreen ? 16 : isMediumScreen ? 19 : 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF2C6E49))),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: _typeColor(diabetesType).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: _typeColor(diabetesType).withOpacity(0.4)),
-                            ),
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(Icons.monitor_heart, size: 11, color: _typeColor(diabetesType)),
-                              const SizedBox(width: 3),
-                              Text('$diabetesType Diabetes',
-                                  style: TextStyle(fontSize: isSmallScreen ? 10 : 12,
-                                      fontWeight: FontWeight.w700, color: _typeColor(diabetesType))),
-                            ]),
-                          ),
-                          const SizedBox(height: 4),
-                          _buildProfileStatsRow(),
-                        ],
+
+                      // ── Today's Nutrients ─────────────────────────
+                      _sLabel("Today's Nutrient Tracking"),
+                      const SizedBox(height: 8),
+                      _buildGoalsInfoStrip(),
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        Expanded(child: Text(
+                            'Swipe to see all  •  Log meals to update',
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: _grey3))),
+                        _legendDot2(Colors.green,  'OK'),
+                        const SizedBox(width: 6),
+                        _legendDot2(Colors.orange, 'Caution'),
+                        const SizedBox(width: 6),
+                        _legendDot2(Colors.red,    'Exceeded'),
+                      ]),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 150,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          children: [
+                            _nutrientCard('Calories', caloriesProgress,
+                                Colors.orange,
+                                '${todayCalories.toStringAsFixed(0)}\n${dailyCalorieGoal.toInt()} kcal'),
+                            _nutrientCard('Carbs', carbsProgress,
+                                _blue,
+                                '${todayCarbs.toStringAsFixed(1)}\n${dailyCarbGoal.toInt()}g'),
+                            _nutrientCard('Protein', proteinProgress,
+                                _purp,
+                                '${todayProtein.toStringAsFixed(1)}\n${dailyProteinGoal.toInt()}g'),
+                            _nutrientCard('Fat', fatProgress,
+                                _amber,
+                                '${todayFat.toStringAsFixed(1)}\n${dailyFatGoal.toInt()}g'),
+                          ],
+                        ),
                       ),
+                      _buildStatusBanner(),
+                      const SizedBox(height: 20),
+
+                      // ── Quick Log ─────────────────────────────────
+                      _buildQuickLogCard(),
+                      const SizedBox(height: 20),
+
+                      // ── Goal Progress ─────────────────────────────
+                      _sLabel('Goal Progress'),
+                      const SizedBox(height: 10),
+                      _wCard(Column(children: [
+                        Row(children: [
+                          Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Weekly Scan Goal',
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _grey1)),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${(weeklyGoalProgress * 100).toInt()}% completed',
+                                style: const TextStyle(
+                                    fontSize: 11, color: _grey3)),
+                            ],
+                          )),
+                          Text(
+                            '${(weeklyGoalProgress * 100).toInt()}%',
+                            style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: _green)),
+                        ]),
+                        const SizedBox(height: 10),
+                        Stack(children: [
+                          Container(height: 8,
+                              decoration: BoxDecoration(
+                                  color: _grey4,
+                                  borderRadius: BorderRadius.circular(4))),
+                          FractionallySizedBox(
+                            widthFactor: weeklyGoalProgress.clamp(0.0, 1.0),
+                            child: Container(
+                              height: 8,
+                              decoration: BoxDecoration(
+                                  color: _green,
+                                  borderRadius: BorderRadius.circular(4)),
+                            ),
+                          ),
+                        ]),
+                        const SizedBox(height: 12),
+                        GoalProgressScreen(
+                          weeklyGoalProgress: weeklyGoalProgress,
+                          goalText:
+                              'Weekly goal: ${(weeklyGoalProgress * 100).toInt()}% completed',
+                        ),
+                      ])),
+                      const SizedBox(height: 20),
+
+                      // ── Recent Food Scans ─────────────────────────
+                      _sLabel('Recent Food Scans'),
+                      const SizedBox(height: 10),
+                      recentScans.isEmpty
+                          ? _wCard(Column(children: [
+                              const Icon(Icons.qr_code_scanner_rounded,
+                                  size: 36, color: _grey4),
+                              const SizedBox(height: 8),
+                              const Text('No food scanned yet',
+                                  style: TextStyle(
+                                      color: _grey3, fontSize: 13)),
+                            ]))
+                          : _wCard(Column(
+                              children: recentScans
+                                  .asMap()
+                                  .entries
+                                  .map((e) => Column(children: [
+                                        _scanRow(e.value),
+                                        if (e.key <
+                                            recentScans.length - 1)
+                                          Divider(
+                                              height: 1,
+                                              color: _grey4),
+                                      ]))
+                                  .toList(),
+                            )),
+                      const SizedBox(height: 20),
+
+                      // ── Do & Don't ────────────────────────────────
+                      _sLabel("Do & Don't Eat"),
+                      const SizedBox(height: 4),
+                      Text('Based on your $diabetesType diabetes profile',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: _grey3,
+                              fontStyle: FontStyle.italic)),
+                      const SizedBox(height: 10),
+                      _buildDoDontCards(),
+                      const SizedBox(height: 8),
                     ]),
-                    _buildSquareButton(icon: Icons.logout, onPressed: _confirmLogout),
-                  ],
-                ),
-
-                SizedBox(height: isSmallScreen ? 12 : 20),
-
-                // ── NUTRIENT TRACKING ────────────────────────────────
-                Row(children: [Expanded(child: _sectionTitle("Today's Nutrient Tracking"))]),
-                const SizedBox(height: 4),
-                _buildGoalsInfoStrip(),
-                SizedBox(height: isSmallScreen ? 8 : 10),
-                Row(children: [
-                  Expanded(child: Text('Swipe to see all • Log meals to update',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade400))),
-                  _legendDot(Colors.green,  'OK'),
-                  const SizedBox(width: 6),
-                  _legendDot(Colors.orange, 'Caution'),
-                  const SizedBox(width: 6),
-                  _legendDot(Colors.red,    'Exceeded'),
-                ]),
-                SizedBox(height: isSmallScreen ? 8 : 10),
-
-                SizedBox(
-                  height: isSmallScreen ? 155 : isMediumScreen ? 160 : 165,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    children: [
-                      _buildCircleStat('Calories', caloriesProgress, Colors.orange,
-                          '${todayCalories.toStringAsFixed(0)}\n${dailyCalorieGoal.toInt()} kcal'),
-                      _buildCircleStat('Carbs', carbsProgress, Colors.blueAccent,
-                          '${todayCarbs.toStringAsFixed(1)}\n${dailyCarbGoal.toInt()}g'),
-                      _buildCircleStat('Protein', proteinProgress, Colors.purple,
-                          '${todayProtein.toStringAsFixed(1)}\n${dailyProteinGoal.toInt()}g'),
-                      _buildCircleStat('Fat', fatProgress, Colors.brown,
-                          '${todayFat.toStringAsFixed(1)}\n${dailyFatGoal.toInt()}g'),
-                    ],
                   ),
                 ),
-
-                _buildNutrientStatusBanner(),
-                SizedBox(height: isSmallScreen ? 15 : 25),
-
-                _buildQuickAddMealCard(isSmallScreen, isMediumScreen),
-                SizedBox(height: isSmallScreen ? 15 : 25),
-
-                _sectionTitle('Goal Progress'),
-                GoalProgressScreen(
-                  weeklyGoalProgress: weeklyGoalProgress,
-                  goalText: 'Weekly goal: ${(weeklyGoalProgress * 100).toInt()}% completed',
-                ),
-                SizedBox(height: isSmallScreen ? 15 : 25),
-
-                _sectionTitle('Recent Food Scans'),
-                const SizedBox(height: 8),
-                recentScans.isEmpty
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Center(child: Column(children: [
-                          Icon(Icons.restaurant_menu, size: 36, color: Colors.grey.shade300),
-                          const SizedBox(height: 8),
-                          Text('No food scanned yet',
-                              style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
-                        ])),
-                      )
-                    : Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2))],
-                        ),
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: recentScans.length,
-                          separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade100),
-                          itemBuilder: (_, i) => _buildScanListItem(recentScans[i]),
-                        ),
-                      ),
-                SizedBox(height: isSmallScreen ? 15 : 25),
-
-                _sectionTitle("Do & Don't Eat (Diabetic)"),
-                SizedBox(height: isSmallScreen ? 6 : 8),
-                Text('Foods added by admin will appear here instantly! 🎉',
-                    style: TextStyle(fontSize: isSmallScreen ? 10 : 12,
-                        color: Colors.grey, fontStyle: FontStyle.italic)),
-                SizedBox(height: isSmallScreen ? 8 : 12),
-                _buildDoDontCards(),
-              ],
+              ]),
             ),
           ),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        selectedItemColor: const Color(0xFF2C6E49),
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-          if (index == 1) {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodScannerScreen()))
-                .then((_) => _fetchDashboardData());
-          } else if (index == 2) {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const MealLogScreen()))
-                .then((_) => _fetchDashboardData());
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home),       label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.camera_alt), label: 'Scanner'),
-          BottomNavigationBarItem(icon: Icon(Icons.book),       label: 'Meal Log'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileStatsRow() {
-    if (userHeight == null && userWeight == null && activityLevel == null) {
-      return const SizedBox.shrink();
-    }
-    final actCfg   = activityLevel != null ? _activityConfig[activityLevel!] : null;
-    final actColor = actCfg != null ? actCfg['color'] as Color : Colors.grey;
-
-    return Wrap(spacing: 5, runSpacing: 4, children: [
-      if (userHeight != null)
-        _statPill(icon: Icons.height, label: '${userHeight!.toStringAsFixed(0)} cm', color: const Color(0xFF2C6E49)),
-      if (userWeight != null)
-        _statPill(icon: Icons.monitor_weight, label: '${userWeight!.toStringAsFixed(0)} kg', color: const Color(0xFF2C6E49)),
-      if (activityLevel != null && actCfg != null)
-        GestureDetector(
-          onTap: _showActivityDetail,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(
-              color: actColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: actColor.withOpacity(0.4)),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(actCfg['icon'] as IconData, size: 11, color: actColor),
-              const SizedBox(width: 3),
-              Text(activityLevel!, style: TextStyle(fontSize: 10, color: actColor, fontWeight: FontWeight.w600)),
-              const SizedBox(width: 2),
-              Icon(Icons.info_outline, size: 9, color: actColor),
-            ]),
-          ),
-        ),
-    ]);
-  }
-
-  Widget _statPill({required IconData icon, required String label, required Color color}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 11, color: color),
-        const SizedBox(width: 3),
-        Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
       ]),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: _white,
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.07),
+                blurRadius: 12,
+                offset: const Offset(0, -2)),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          selectedItemColor: _green,
+          unselectedItemColor: _grey3,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          type: BottomNavigationBarType.fixed,
+          selectedLabelStyle: const TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w700),
+          unselectedLabelStyle: const TextStyle(fontSize: 11),
+          onTap: (index) {
+            setState(() => _currentIndex = index);
+            if (index == 1) {
+              Navigator.push(context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const FoodScannerScreen()))
+                  .then((_) => _fetchDashboardData());
+            } else if (index == 2) {
+              Navigator.push(context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const MealLogScreen()))
+                  .then((_) => _fetchDashboardData());
+            }
+          },
+          items: const [
+            BottomNavigationBarItem(
+                icon: Icon(Icons.home_rounded), label: 'Home'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.qr_code_scanner_rounded),
+                label: 'Scanner'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.edit_note_rounded),
+                label: 'Meal Log'),
+          ],
+        ),
+      ),
     );
   }
 
+  // ── Gradient header ─────────────────────────────────────────────────────
+  Widget _buildHeader(String name) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF2C6E49), Color(0xFF4A9B6F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 16, 28),
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            // Top row: avatar + name + logout
+            Row(children: [
+              // Avatar
+              GestureDetector(
+                onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                const EditProfileScreen()))
+                    .then((_) {
+                  _fetchUserProfile();
+                  _fetchDashboardData();
+                }),
+                child: Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.6),
+                        width: 2),
+                  ),
+                  child: ClipOval(
+                    child: profilePictureUrl != null &&
+                            profilePictureUrl!.isNotEmpty
+                        ? Image.network(profilePictureUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const _DefaultAvatar())
+                        : const _DefaultAvatar(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                  Text('Hello, $name 👋',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 3),
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color:
+                                Colors.white.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                        const Icon(Icons.monitor_heart,
+                            size: 11, color: Colors.white70),
+                        const SizedBox(width: 4),
+                        Text('$diabetesType Diabetes',
+                            style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+              // Logout button
+              InkWell(
+                onTap: _confirmLogout,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: const Icon(Icons.logout_rounded,
+                      color: Colors.white, size: 18),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 14),
+            // Stats pills row
+            _buildProfileStatsRow(),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // ── Goals info strip ────────────────────────────────────────────────────
   Widget _buildGoalsInfoStrip() {
     final goals = _diabetesGoals[diabetesType];
     if (goals == null) return const SizedBox.shrink();
-    final color = _typeColor(diabetesType);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
+        color: _greenPal,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: _green.withOpacity(0.25)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
         Row(children: [
-          Icon(Icons.info_outline, size: 13, color: color),
+          const Icon(Icons.info_outline_rounded,
+              size: 13, color: _green),
           const SizedBox(width: 5),
-          Text('$diabetesType Diabetes — Your Daily Limits',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+          Text('$diabetesType Diabetes — Daily Limits',
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _green)),
         ]),
         const SizedBox(height: 6),
-        Wrap(spacing: 8, runSpacing: 4, children: [
-          _goalChip('🔥 ${goals.calories.toInt()} kcal', color),
-          _goalChip('🍞 ${goals.carbs.toInt()}g carbs', color),
-          _goalChip('💪 ${goals.protein.toInt()}g protein', color),
-          _goalChip('🧈 ${goals.fat.toInt()}g fat', color),
+        Wrap(spacing: 6, runSpacing: 4, children: [
+          _goalChip('🔥 ${goals.calories.toInt()} kcal'),
+          _goalChip('🍞 ${goals.carbs.toInt()}g carbs'),
+          _goalChip('💪 ${goals.protein.toInt()}g protein'),
+          _goalChip('🧈 ${goals.fat.toInt()}g fat'),
         ]),
       ]),
     );
   }
 
-  Widget _goalChip(String label, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+  Widget _goalChip(String label) => Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: _green.withOpacity(0.1),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(
+              color: _green.withOpacity(0.3)),
         ),
-        child: Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+        child: Text(label,
+            style: const TextStyle(
+                fontSize: 10,
+                color: _green,
+                fontWeight: FontWeight.w600)),
       );
 
-  Widget _legendDot(Color color, String label) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 2),
-          Text(label, style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+  // ── Nutrient circle card ────────────────────────────────────────────────
+  Widget _nutrientCard(String label, double progress,
+      Color color, String detail) {
+    final dp         = progress.clamp(0.0, 1.0);
+    final isExceeded = progress >= _dangerThreshold;
+    final isCaution  = progress >= _cautionThreshold && !isExceeded;
+    final c = isExceeded
+        ? Colors.red
+        : isCaution
+            ? Colors.orange
+            : color;
+
+    return Container(
+      width: 110,
+      margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: _white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isExceeded
+              ? Colors.red.withOpacity(0.5)
+              : isCaution
+                  ? Colors.orange.withOpacity(0.5)
+                  : _grey4,
+          width: isExceeded || isCaution ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+              color: c.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 3)),
         ],
-      );
+      ),
+      child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+        Stack(alignment: Alignment.center, children: [
+          SizedBox(
+            width: 62, height: 62,
+            child: CircularProgressIndicator(
+              value: dp,
+              strokeWidth: 6,
+              backgroundColor: _grey4,
+              valueColor: AlwaysStoppedAnimation(c),
+            ),
+          ),
+          isExceeded
+              ? const Icon(Icons.warning_amber_rounded,
+                  color: Colors.red, size: 22)
+              : isCaution
+                  ? const Icon(Icons.warning_amber_rounded,
+                      color: Colors.orange, size: 20)
+                  : Text('${(progress * 100).toInt()}%',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          color: c)),
+        ]),
+        const SizedBox(height: 6),
+        Text(label,
+            style: TextStyle(
+                color: c,
+                fontWeight: FontWeight.w700,
+                fontSize: 11)),
+        const SizedBox(height: 2),
+        Text(detail,
+            style: const TextStyle(
+                color: _grey3, fontSize: 9),
+            textAlign: TextAlign.center,
+            maxLines: 2),
+        if (isExceeded)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text('EXCEEDED',
+                style: TextStyle(
+                    fontSize: 7,
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold)),
+          )
+        else if (isCaution)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text('CAUTION',
+                style: TextStyle(
+                    fontSize: 7,
+                    color: Colors.orange,
+                    fontWeight: FontWeight.bold)),
+          ),
+      ]),
+    );
+  }
 
-  Widget _buildNutrientStatusBanner() {
+  // ── Nutrient status banner ──────────────────────────────────────────────
+  Widget _buildStatusBanner() {
     final exceeded = <String>[];
     final caution  = <String>[];
-
-    void check(double p, String name) {
-      if (p >= _dangerThreshold)       exceeded.add(name);
-      else if (p >= _cautionThreshold) caution.add(name);
+    void chk(double p, String n) {
+      if (p >= _dangerThreshold) exceeded.add(n);
+      else if (p >= _cautionThreshold) caution.add(n);
     }
-
-    check(caloriesProgress, 'Calories');
-    check(carbsProgress,    'Carbs');
-    check(fatProgress,      'Fat');
-    check(proteinProgress,  'Protein');
+    chk(caloriesProgress, 'Calories');
+    chk(carbsProgress,    'Carbs');
+    chk(fatProgress,      'Fat');
+    chk(proteinProgress,  'Protein');
 
     if (exceeded.isEmpty && caution.isEmpty) {
       return Container(
         margin: const EdgeInsets.only(top: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.green.shade50,
+          color: _greenPal,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.green.shade200),
+          border: Border.all(
+              color: _green.withOpacity(0.25)),
         ),
-        child: const Row(children: [
-          Icon(Icons.check_circle, color: Colors.green, size: 18),
-          SizedBox(width: 8),
-          Expanded(child: Text('✅ All nutrients within your diabetic-safe limits today!',
-              style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w600))),
+        child: Row(children: [
+          const Icon(Icons.check_circle_rounded,
+              color: _green, size: 16),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              '✅ All nutrients within your daily limits today!',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: _green,
+                  fontWeight: FontWeight.w600)),
+          ),
         ]),
       );
     }
-
     return Column(children: [
       if (exceeded.isNotEmpty) ...[
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red.shade300)),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _redPal,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: _red.withOpacity(0.3)),
+          ),
           child: Row(children: [
-            const Icon(Icons.dangerous_outlined, color: Colors.red, size: 18),
+            const Icon(Icons.dangerous_outlined,
+                color: _red, size: 16),
             const SizedBox(width: 8),
-            Expanded(child: Text('🚨 Limit exceeded: ${exceeded.join(', ')} — reduce intake now!',
-                style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600))),
+            Expanded(
+              child: Text(
+                '🚨 Limit exceeded: ${exceeded.join(', ')}',
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: _red,
+                    fontWeight: FontWeight.w600)),
+            ),
           ]),
         ),
       ],
       if (caution.isNotEmpty) ...[
         const SizedBox(height: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.shade300)),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _amberPal,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: _amber.withOpacity(0.3)),
+          ),
           child: Row(children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 18),
+            const Icon(Icons.warning_amber_rounded,
+                color: _amber, size: 16),
             const SizedBox(width: 8),
-            Expanded(child: Text('⚠️ Approaching limit: ${caution.join(', ')} — eat carefully!',
-                style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600))),
+            Expanded(
+              child: Text(
+                '⚠️ Approaching limit: ${caution.join(', ')}',
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: _amber,
+                    fontWeight: FontWeight.w600)),
+            ),
           ]),
         ),
       ],
     ]);
   }
 
-  void _openAddFoodFromDashboard(String mealType) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => AddFoodSheet(preselectedMeal: mealType),
-    ).then((_) => _fetchDashboardData());
-  }
-
-  Widget _buildQuickAddMealCard(bool isSmallScreen, bool isMediumScreen) {
+  // ── Quick Log card ──────────────────────────────────────────────────────
+  Widget _buildQuickLogCard() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF2C6E49), Color(0xFF4CAF50)],
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [Color(0xFF2C6E49), Color(0xFF4A9B6F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: const Color(0xFF2C6E49).withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: _green.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4)),
+        ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
         Row(children: [
-          const Icon(Icons.add_circle, color: Colors.white, size: 20),
+          const Icon(Icons.add_circle_rounded,
+              color: Colors.white, size: 20),
           const SizedBox(width: 8),
-          Text('Log Your Meal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold,
-              fontSize: isSmallScreen ? 14 : 16)),
-          const Spacer(),
+          const Expanded(
+            child: Text('Log Your Meal',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15)),
+          ),
           GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MealLogScreen()))
+            onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) =>
+                            const MealLogScreen()))
                 .then((_) => _fetchDashboardData()),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-              child: const Text('View All', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text('View All',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
             ),
           ),
         ]),
-        const SizedBox(height: 6),
-        Text('Tap a meal to log food directly',
-            style: TextStyle(color: Colors.white60, fontSize: isSmallScreen ? 10 : 11)),
-        const SizedBox(height: 10),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _mealShortcut('🌅', 'Breakfast'),
-          _mealShortcut('☀️', 'Lunch'),
-          _mealShortcut('🌙', 'Dinner'),
-        ]),
+        const SizedBox(height: 4),
+        const Text('Tap a meal to log food directly',
+            style: TextStyle(
+                color: Colors.white60, fontSize: 11)),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment:
+              MainAxisAlignment.spaceAround,
+          children: [
+            _mealChip('🌅', 'Breakfast'),
+            _mealChip('☀️', 'Lunch'),
+            _mealChip('🌙', 'Dinner'),
+          ],
+        ),
       ]),
     );
   }
 
-  Widget _mealShortcut(String emoji, String label) {
+  Widget _mealChip(String emoji, String label) {
     return GestureDetector(
       onTap: () => _openAddFoodFromDashboard(label),
       child: Column(children: [
         Container(
-          width: 44, height: 44,
+          width: 48, height: 48,
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.2),
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white30, width: 1.5),
+            border: Border.all(
+                color: Colors.white30, width: 1.5),
           ),
-          child: Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
+          child: Center(
+              child: Text(emoji,
+                  style: const TextStyle(fontSize: 22))),
         ),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+        Text(label,
+            style: const TextStyle(
+                color: Colors.white70, fontSize: 10)),
       ]),
     );
   }
 
-  Widget _buildSquareButton({required IconData icon, required VoidCallback onPressed}) {
-    return InkWell(
-      onTap: onPressed,
-      child: Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(
-          color: const Color(0xFF2C6E49),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 128, 128, 0.3), blurRadius: 5, offset: const Offset(2, 2))],
-        ),
-        child: Icon(icon, color: Colors.white, size: 22),
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String title) {
-    final sw = MediaQuery.of(context).size.width;
-    return Text(title, style: TextStyle(
-        fontSize: sw < 360 ? 14 : sw < 400 ? 16 : 18,
-        fontWeight: FontWeight.bold, color: const Color(0xFF2C6E49)));
-  }
-
-  Widget _buildCircleStat(String label, double progress, Color defaultColor, String detailText) {
-    final dp         = progress.clamp(0.0, 1.0);
-    final color      = _nutrientColor(progress, defaultColor);
-    final isExceeded = progress >= _dangerThreshold;
-    final isCaution  = progress >= _cautionThreshold && !isExceeded;
-
-    return Container(
-      width: 110,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.18), blurRadius: 8, offset: const Offset(0, 3))],
-        border: Border.all(
-          color: isExceeded ? Colors.red : isCaution ? Colors.orange : color.withOpacity(0.15),
-          width: isExceeded || isCaution ? 2 : 1,
-        ),
-      ),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Stack(alignment: Alignment.center, children: [
-          SizedBox(width: 64, height: 64,
-              child: CircularProgressIndicator(
-                value: dp, strokeWidth: 7,
-                backgroundColor: Colors.grey.shade200,
-                valueColor: AlwaysStoppedAnimation(color),
-              )),
-          if (isExceeded)
-            Container(width: 64, height: 64,
-                decoration: BoxDecoration(color: Colors.red.withOpacity(0.07), shape: BoxShape.circle),
-                child: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24))
-          else if (isCaution)
-            Container(width: 64, height: 64,
-                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.07), shape: BoxShape.circle),
-                child: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 22))
-          else
-            Text('${(progress * 100).toInt()}%',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: color)),
-        ]),
-        const SizedBox(height: 5),
-        Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
-          Flexible(child: Text(label,
-              style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11),
-              overflow: TextOverflow.ellipsis)),
-          if (isExceeded) ...[const SizedBox(width: 2), const Icon(Icons.error, color: Colors.red, size: 11)]
-          else if (isCaution) ...[const SizedBox(width: 2), const Icon(Icons.info, color: Colors.orange, size: 11)],
-        ]),
-        if (isExceeded || isCaution)
-          Text('${(progress * 100).toInt()}%',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: color)),
-        const SizedBox(height: 1),
-        Text(detailText, style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
-            textAlign: TextAlign.center, maxLines: 2),
-        if (isExceeded)
-          Container(margin: const EdgeInsets.only(top: 3),
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6)),
-              child: const Text('EXCEEDED', style: TextStyle(fontSize: 7, color: Colors.red, fontWeight: FontWeight.bold)))
-        else if (isCaution)
-          Container(margin: const EdgeInsets.only(top: 3),
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6)),
-              child: const Text('CAUTION', style: TextStyle(fontSize: 7, color: Colors.orange, fontWeight: FontWeight.bold))),
-      ]),
-    );
-  }
-
-  Widget _buildScanListItem(Map<String, dynamic> scan) {
+  // ── Scan list row ────────────────────────────────────────────────────────
+  Widget _scanRow(Map<String, dynamic> scan) {
     final name = scan['name'] as String? ?? 'Unknown';
     final ts   = scan['timestamp'] as DateTime?;
-    String dateStr = '';
-    String timeStr = '';
+    String dateStr = '', timeStr = '';
     if (ts != null) {
-      final now    = DateTime.now();
-      final today  = DateTime(now.year, now.month, now.day);
-      final logDay = DateTime(ts.year, ts.month, ts.day);
-      dateStr = logDay == today ? 'Today'
+      final now   = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final day   = DateTime(ts.year, ts.month, ts.day);
+      dateStr = day == today
+          ? 'Today'
           : '${ts.day.toString().padLeft(2, '0')}/${ts.month.toString().padLeft(2, '0')}/${ts.year}';
-      final hour   = ts.hour;
-      final minute = ts.minute.toString().padLeft(2, '0');
-      final period = hour >= 12 ? 'PM' : 'AM';
-      final hour12 = hour % 12 == 0 ? 12 : hour % 12;
-      timeStr = '$hour12:$minute $period';
+      final h12 = ts.hour % 12 == 0 ? 12 : ts.hour % 12;
+      timeStr = '$h12:${ts.minute.toString().padLeft(2, '0')} ${ts.hour >= 12 ? 'PM' : 'AM'}';
     }
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+          horizontal: 4, vertical: 10),
       child: Row(children: [
-        Container(width: 40, height: 40,
-            decoration: BoxDecoration(color: const Color(0xFF2C6E49).withOpacity(0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.restaurant, color: Color(0xFF2C6E49), size: 20)),
+        Container(
+          width: 38, height: 38,
+          decoration: BoxDecoration(
+              color: _tealPal,
+              borderRadius: BorderRadius.circular(10)),
+          child: const Icon(Icons.qr_code_scanner_rounded,
+              color: _teal, size: 18),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2C6E49)),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
+        Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          Text(name,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: _grey1),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
           if (dateStr.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text('$dateStr • $timeStr', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            Text('$dateStr  •  $timeStr',
+                style: const TextStyle(
+                    fontSize: 10, color: _grey3)),
           ],
         ])),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(color: const Color(0xFF2C6E49).withOpacity(0.07), borderRadius: BorderRadius.circular(20)),
-          child: const Text('Scanned', style: TextStyle(fontSize: 10, color: Color(0xFF2C6E49), fontWeight: FontWeight.w600)),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: _tealPal,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text('Scanned',
+              style: TextStyle(
+                  fontSize: 10,
+                  color: _teal,
+                  fontWeight: FontWeight.w700)),
         ),
       ]),
     );
   }
 
+  // ── Profile stats row ────────────────────────────────────────────────────
+  Widget _buildProfileStatsRow() {
+    if (userHeight == null &&
+        userWeight == null &&
+        activityLevel == null) return const SizedBox.shrink();
+    final actCfg = activityLevel != null
+        ? _activityConfig[activityLevel!]
+        : null;
+    final actColor = actCfg != null
+        ? actCfg['color'] as Color
+        : Colors.grey;
+
+    return Wrap(spacing: 6, runSpacing: 4, children: [
+      if (userHeight != null)
+        _headerPill(Icons.height,
+            '${userHeight!.toStringAsFixed(0)} cm'),
+      if (userWeight != null)
+        _headerPill(Icons.monitor_weight,
+            '${userWeight!.toStringAsFixed(0)} kg'),
+      if (activityLevel != null && actCfg != null)
+        GestureDetector(
+          onTap: _showActivityDetail,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: Colors.white.withOpacity(0.3)),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min,
+                children: [
+              Icon(actCfg['icon'] as IconData,
+                  size: 10, color: Colors.white),
+              const SizedBox(width: 3),
+              Text(activityLevel!,
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(width: 2),
+              const Icon(Icons.info_outline,
+                  size: 9, color: Colors.white60),
+            ]),
+          ),
+        ),
+    ]);
+  }
+
+  Widget _headerPill(IconData icon, String label) =>
+      Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: Colors.white.withOpacity(0.3)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min,
+            children: [
+          Icon(icon, size: 10, color: Colors.white),
+          const SizedBox(width: 3),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600)),
+        ]),
+      );
+
+  // ── Do / Don't cards ────────────────────────────────────────────────────
   Widget _buildDoDontCards() {
-    final sw       = MediaQuery.of(context).size.width;
-    final isSmall  = sw < 360;
-    final isMedium = sw >= 360 && sw < 400;
-
-    if (diabetesType == 'Not set' || diabetesType == 'Error loading type' || diabetesType == 'Loading...') {
-      return SizedBox(height: isSmall ? 120 : isMedium ? 135 : 150,
-          child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.restaurant_menu, size: isSmall ? 35 : 50, color: Colors.grey.shade400),
-            SizedBox(height: isSmall ? 6 : 8),
-            Text(diabetesType == 'Error loading type' ? 'Failed to load recommendations' : 'Loading food recommendations...',
-                style: TextStyle(color: Colors.grey, fontSize: isSmall ? 12 : 16)),
-          ])));
+    if (diabetesType == 'Not set' ||
+        diabetesType == 'Error loading type' ||
+        diabetesType == 'Loading...') {
+      return _wCard(Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Text(
+            diabetesType == 'Error loading type'
+                ? 'Failed to load recommendations'
+                : 'Loading food recommendations...',
+            style: const TextStyle(
+                color: _grey3, fontSize: 13)),
+        ),
+      ));
     }
-
     return SizedBox(
-      height: isSmall ? 120 : isMedium ? 135 : 150,
+      height: 130,
       child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('food_rules').snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('food_rules')
+            .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting)
-            return const Center(child: CircularProgressIndicator());
-          if (snapshot.hasError)
-            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
-            return Center(child: Text('No foods available yet', style: TextStyle(color: Colors.grey.shade500, fontSize: 14)));
-
-          final docs     = snapshot.data!.docs;
+          if (!snapshot.hasData)
+            return const Center(
+                child: CircularProgressIndicator(
+                    color: _green));
+          final docs = snapshot.data!.docs;
           final filtered = docs.where((doc) {
             final d = doc.data() as Map<String, dynamic>?;
-            return d?['diabetesType']?.toString() == diabetesType;
+            return d?['diabetesType']?.toString() ==
+                diabetesType;
           }).toList();
 
           filtered.sort((a, b) {
@@ -1025,118 +1283,274 @@ class _DashboardState extends State<Dashboard> {
             return bT.compareTo(aT);
           });
 
-          final doFoods   = filtered.where((d) => d['category'] == 'Do').toList();
-          final dontFoods = filtered.where((d) => d['category'] == "Don't").toList();
+          final doFoods = filtered
+              .where((d) => d['category'] == 'Do')
+              .toList();
+          final dontFoods = filtered
+              .where((d) => d['category'] == "Don't")
+              .toList();
 
-          return ListView(scrollDirection: Axis.horizontal, children: [
-            GestureDetector(
-              onTap: () => _openDoDontScreen('✅ DO - Recommended Foods', _buildFoodCardsFromDocs(doFoods), doFoods.length),
-              child: _buildDoDontCard('✅ DO', '(${doFoods.length} foods)', Colors.green.shade300),
-            ),
-            SizedBox(width: isSmall ? 8 : 12),
-            GestureDetector(
-              onTap: () => _openDoDontScreen("🚫 DON'T - Foods to Avoid", _buildFoodCardsFromDocs(dontFoods), dontFoods.length),
-              child: _buildDoDontCard("🚫 DON'T", '(${dontFoods.length} foods)', Colors.red.shade300),
-            ),
-          ]);
+          return ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              GestureDetector(
+                onTap: () => _openDoDontScreen(
+                    '✅ DO — Recommended Foods',
+                    _buildFoodCardsFromDocs(doFoods),
+                    doFoods.length),
+                child: _doDontChip(
+                    '✅ DO',
+                    '${doFoods.length} foods',
+                    _green,
+                    _greenPal),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () => _openDoDontScreen(
+                    "🚫 DON'T — Foods to Avoid",
+                    _buildFoodCardsFromDocs(dontFoods),
+                    dontFoods.length),
+                child: _doDontChip(
+                    "🚫 DON'T",
+                    '${dontFoods.length} foods',
+                    _red,
+                    _redPal),
+              ),
+            ],
+          );
         },
       ),
     );
   }
 
-  void _openDoDontScreen(String title, List<Widget> cards, int count) {
-    if (count == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No foods in this category yet!'), duration: Duration(seconds: 2)));
-      return;
-    }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => DoDontFoodsScreen(title: title, foodCards: cards)));
+  Widget _doDontChip(
+      String title, String sub, Color color, Color pal) =>
+      Container(
+        width: 155,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: pal,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: color.withOpacity(0.3), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+                color: color.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 3)),
+          ],
+        ),
+        child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+          Text(title,
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: color)),
+          const SizedBox(height: 4),
+          Text(sub,
+              style: TextStyle(
+                  fontSize: 11, color: color.withOpacity(0.7))),
+        ]),
+      );
+
+  // ── Shared helpers ───────────────────────────────────────────────────────
+  Widget _sLabel(String text) => Text(text,
+      style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: _grey1));
+
+  Widget _wCard(Widget child) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2)),
+          ],
+        ),
+        child: child,
+      );
+
+  Widget _legendDot2(Color color, String label) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+            width: 7, height: 7,
+            decoration: BoxDecoration(
+                color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 3),
+        Text(label,
+            style: TextStyle(
+                fontSize: 9, color: _grey3)),
+      ]);
+
+  // ── Keep legacy helpers that other methods call ──────────────────────────
+  Widget _buildQuickAddMealCard(
+          bool isSmallScreen, bool isMediumScreen) =>
+      _buildQuickLogCard();
+
+  Widget _mealShortcut(String emoji, String label) =>
+      _mealChip(emoji, label);
+
+  Widget _buildCircleStat(String label, double progress,
+      Color color, String detail) =>
+      _nutrientCard(label, progress, color, detail);
+
+  Widget _buildNutrientStatusBanner() => _buildStatusBanner();
+
+  Widget _sectionTitle(String t) => _sLabel(t);
+
+  Widget _buildScanListItem(Map<String, dynamic> scan) =>
+      _scanRow(scan);
+
+  Widget _statPill(
+          {required IconData icon,
+          required String label,
+          required Color color}) =>
+      _headerPill(icon, label);
+
+  Widget _legendDot(Color color, String label) =>
+      _legendDot2(color, label);
+
+  Widget _buildSquareButton(
+          {required IconData icon,
+          required VoidCallback onPressed}) =>
+      InkWell(
+        onTap: onPressed,
+        child: Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, color: Colors.white, size: 18),
+        ),
+      );
+
+  // ── Missing methods ───────────────────────────────────────────────────
+
+  void _openAddFoodFromDashboard(String mealType) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddFoodSheet(preselectedMeal: mealType),
+    ).then((_) => _fetchDashboardData());
   }
 
-  Widget _buildDoDontCard(String title, String subtitle, Color color) {
-    final sw       = MediaQuery.of(context).size.width;
-    final isSmall  = sw < 360;
-    final isMedium = sw >= 360 && sw < 400;
-    return Container(
-      width: isSmall ? 140 : isMedium ? 160 : 180,
-      decoration: BoxDecoration(
-        color: color.withAlpha((0.8 * 255).round()),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: color.withAlpha((0.3 * 255).round()), blurRadius: 8, offset: const Offset(2, 4))],
-      ),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Text(title, style: TextStyle(fontSize: isSmall ? 16 : isMedium ? 18 : 20, fontWeight: FontWeight.bold, color: Colors.white)),
-        SizedBox(height: isSmall ? 2 : 4),
-        Text(subtitle, style: TextStyle(fontSize: isSmall ? 10 : isMedium ? 11 : 12, color: Colors.white70)),
-      ]),
-    );
+  void _openDoDontScreen(String title, List<Widget> cards, int count) {
+    if (count == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No foods in this category yet!'),
+        duration: Duration(seconds: 2),
+      ));
+      return;
+    }
+    Navigator.push(context, MaterialPageRoute(
+        builder: (_) => DoDontFoodsScreen(title: title, foodCards: cards)));
   }
 
   List<Widget> _buildFoodCardsFromDocs(List<QueryDocumentSnapshot> foodDocs) {
     return foodDocs.map((doc) {
       final data     = doc.data() as Map<String, dynamic>;
-      final name     = data['name'] ?? 'Unknown Food';
+      final name     = data['name']     ?? 'Unknown Food';
       final imageUrl = data['imageUrl'] ?? data['imagePath'] ?? '';
       return _buildFoodCard(imageUrl, name, data);
     }).toList();
   }
 
-  Widget _buildFoodCard(String imageUrl, String foodName, Map<String, dynamic> data) {
+  Widget _buildFoodCard(String imageUrl, String foodName,
+      Map<String, dynamic> data) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(10),
         child: Row(children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
             child: imageUrl.isNotEmpty
-                ? Image.network(imageUrl, width: 60, height: 60, fit: BoxFit.cover,
+                ? Image.network(imageUrl,
+                    width: 60, height: 60, fit: BoxFit.cover,
                     loadingBuilder: (_, child, p) => p == null ? child
-                        : Container(width: 60, height: 60, color: Colors.grey.shade200,
+                        : Container(width: 60, height: 60, color: _grey4,
                             child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
-                    errorBuilder: (_, __, ___) => Container(width: 60, height: 60,
-                        color: Colors.grey.shade200, child: const Icon(Icons.fastfood, color: Colors.grey, size: 30)))
-                : Container(width: 60, height: 60,
-                    decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-                    child: const Icon(Icons.fastfood, color: Colors.grey, size: 30)),
+                    errorBuilder: (_, __, ___) => Container(
+                        width: 60, height: 60, color: _grey4,
+                        child: const Icon(Icons.fastfood_rounded, color: _grey3, size: 28)))
+                : Container(
+                    width: 60, height: 60,
+                    decoration: BoxDecoration(color: _grey4, borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.fastfood_rounded, color: _grey3, size: 28)),
           ),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text(foodName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C6E49)),
-                maxLines: 2, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Text(data['portionSize'] ?? 'N/A',
-                style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 4),
-            Wrap(spacing: 6, runSpacing: 2, children: [
-              NutrientTile(label: 'Carbs',   value: '${data['carbs']    ?? 0}g'),
-              NutrientTile(label: 'Protein', value: '${data['protein']  ?? 0}g'),
-              NutrientTile(label: 'Fat',     value: '${data['fat']      ?? 0}g'),
-              NutrientTile(label: 'Cal',     value: '${data['calories'] ?? 0} kcal'),
-            ]),
-          ])),
+          const SizedBox(width: 12),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(foodName,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _grey1),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 4),
+              Text(data['portionSize'] ?? 'N/A',
+                  style: const TextStyle(fontSize: 12, color: _grey3)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 5, runSpacing: 3, children: [
+                _nutBadge('Carbs',   '${data['carbs']    ?? 0}g'),
+                _nutBadge('Protein', '${data['protein']  ?? 0}g'),
+                _nutBadge('Fat',     '${data['fat']      ?? 0}g'),
+                _nutBadge('Cal',     '${data['calories'] ?? 0} kcal'),
+              ]),
+            ],
+          )),
         ]),
       ),
     );
   }
+
+  Widget _nutBadge(String label, String value) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(color: _grey5, borderRadius: BorderRadius.circular(4)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text('$label ', style: const TextStyle(fontSize: 10, color: _grey3)),
+          Text(value,    style: const TextStyle(fontSize: 10, color: _grey1, fontWeight: FontWeight.w700)),
+        ]),
+      );
 }
 
-class NutrientTile extends StatelessWidget {
-  final String label;
-  final String value;
-  const NutrientTile({super.key, required this.label, required this.value});
-
+// ── Default avatar ──────────────────────────────────────────────────────────
+class _DefaultAvatar extends StatelessWidget {
+  const _DefaultAvatar();
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(3)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text('$label ', style: const TextStyle(fontSize: 10, color: Colors.black54, fontWeight: FontWeight.w500)),
-        Text(value,     style: const TextStyle(fontSize: 10, color: Colors.black87, fontWeight: FontWeight.bold)),
-      ]),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        color: const Color(0xFF2C6E49),
+        child: const Icon(Icons.person,
+            color: Colors.white, size: 28),
+      );
 }
+
+// ── Palette — same as admin ──────────────────────────────────────────────────
+const _bg      = Color(0xFFF4F7F5);
+const _white   = Color(0xFFFFFFFF);
+const _green   = Color(0xFF2C6E49);
+const _greenPal= Color(0xFFE8F5EE);
+const _red     = Color(0xFFD64045);
+const _redPal  = Color(0xFFFDECEC);
+const _amber   = Color(0xFFF09D18);
+const _amberPal= Color(0xFFFFF4E0);
+const _blue    = Color(0xFF2979C6);
+const _teal    = Color(0xFF0D8A7C);
+const _tealPal = Color(0xFFE3F5F3);
+const _purp    = Color(0xFF7B5EA7);
+const _grey1   = Color(0xFF1A2E22);
+const _grey2   = Color(0xFF4D6357);
+const _grey3   = Color(0xFF8FA898);
+const _grey4   = Color(0xFFD5E2DA);
+const _grey5   = Color(0xFFF0F5F2);
