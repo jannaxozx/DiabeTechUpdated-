@@ -37,7 +37,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   List<Map<String, dynamic>> _allFoodDocs = [];
   String? _capturedImagePath;
 
-  static const String _geminiApiKey = 'AIzaSyB7QJZM1JuXQF9ksz1UXLH5JJ484aBM0uU';
+  static const String _geminiApiKey = '';
   static const String _geminiModel  = 'gemini-1.5-flash-latest';
 
   @override
