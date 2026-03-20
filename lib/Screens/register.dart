@@ -932,7 +932,7 @@ class _RegisterState extends State<Register> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 30),
 
                   // Already have account
                   Row(
@@ -960,6 +960,7 @@ class _RegisterState extends State<Register> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),

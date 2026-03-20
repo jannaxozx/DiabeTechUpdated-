@@ -3,8 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 import 'firebase_options.dart';
 
@@ -16,28 +14,15 @@ import 'Screens/admin_dashboard.dart';
 import 'Screens/admin_food_rules_screen.dart';
 import 'Screens/admin_food_detail_screen.dart';
 
-// Optional (if used elsewhere)
 import 'supabase_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔥 Firebase initialization (AUTH + DATABASE ONLY)
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // 🔵 Facebook login for Web
-  if (kIsWeb) {
-    await FacebookAuth.instance.webAndDesktopInitialize(
-      appId: '1026888019476120',
-      cookie: true,
-      xfbml: true,
-      version: 'v20.0',
-    );
-  }
-
-  // 🔹 Supabase (only if used elsewhere in the app)
   await SupabaseConfig.initialize();
 
   runApp(const MyApp());
@@ -73,11 +58,9 @@ class _InitialScreenState extends State<InitialScreen> {
     _startAppFlow();
   }
 
-  /// 🔁 Handles onboarding → login → role routing
   Future<void> _startAppFlow() async {
     final prefs = await SharedPreferences.getInstance();
-    final hasSeenOnboarding =
-        prefs.getBool('hasSeenOnboarding') ?? false;
+    final hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
 
     if (!hasSeenOnboarding) {
       await prefs.setBool('hasSeenOnboarding', true);
@@ -89,7 +72,6 @@ class _InitialScreenState extends State<InitialScreen> {
     _checkAuthAndRole();
   }
 
-  /// 👤 Checks login & admin/user role
   Future<void> _checkAuthAndRole() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -115,14 +97,12 @@ class _InitialScreenState extends State<InitialScreen> {
         _navigate(const Dashboard());
       }
     } catch (e) {
-      // Fallback safety
       await FirebaseAuth.instance.signOut();
       if (!mounted) return;
       _navigate(const LandingPage());
     }
   }
 
-  /// 🔀 Navigation helper
   void _navigate(Widget page) {
     Navigator.pushReplacement(
       context,
@@ -133,9 +113,7 @@ class _InitialScreenState extends State<InitialScreen> {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }

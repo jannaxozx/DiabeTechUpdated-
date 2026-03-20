@@ -13,12 +13,8 @@ dependencies:
   supabase_flutter: ^2.5.4
   cached_network_image: ^3.3.1
 
-  # Facebook Auth
-  flutter_facebook_auth: ^7.1.0
-
   # Camera
   camera: ^0.11.0
-  
 
   # Utils
   shared_preferences: ^2.2.2
@@ -32,11 +28,10 @@ dependencies:
   cloud_firestore: ^5.0.0
   firebase_storage: ^12.0.4
 
-
   # UI
   cupertino_icons: ^1.0.8
 
-  # ML Kit (kept for other screens)
+  # ML Kit
   google_mlkit_image_labeling: ^0.14.1
   google_mlkit_text_recognition: ^0.15.0
   google_mlkit_object_detection: ^0.15.0
@@ -45,7 +40,7 @@ dependencies:
   image_picker: ^1.0.0
   file_picker: ^8.0.0
 
-  # HTTP - needed for Claude AI Vision API in food scanner
+  # HTTP - needed for Gemini AI Vision API in food scanner
   http: ^1.2.0
 
 dev_dependencies:
@@ -62,4 +57,3 @@ flutter:
     - assets/images/landing.png
     - assets/images/ground.png
     - assets/images/DiabeTechLogo.png
-    - assets/images/Facebook1.png

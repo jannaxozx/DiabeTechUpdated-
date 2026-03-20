@@ -14,6 +14,7 @@ import 'package:diabetechapp/health/do_dont_foods_screen.dart';
 import 'landing_page.dart';
 import 'edit_user_screen.dart';
 import 'admin_reports.dart';
+import 'feedback_screen.dart';
 import '../supabase_config.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -30,7 +31,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
   String _filterFoodDiabetesType = 'All';
 
   final TextEditingController nameController = TextEditingController();
-  final TextEditingController portionController = TextEditingController();
   final TextEditingController caloriesController = TextEditingController();
   final TextEditingController carbsController = TextEditingController();
   final TextEditingController proteinController = TextEditingController();
@@ -282,7 +282,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   void dispose() {
     nameController.dispose();
-    portionController.dispose();
     caloriesController.dispose();
     carbsController.dispose();
     proteinController.dispose();
@@ -322,7 +321,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             onPressed: () {
               Navigator.of(ctx).pop();
               nameController.clear();
-              portionController.clear();
               caloriesController.clear();
               carbsController.clear();
               proteinController.clear();
@@ -462,11 +460,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           const SnackBar(content: Text("⚠️ Please enter a food name")));
       return;
     }
-    if (portionController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("⚠️ Please enter portion size")));
-      return;
-    }
 
     bool hasImage = (kIsWeb && _webImage != null) || (!kIsWeb && _selectedImage != null);
 
@@ -480,7 +473,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           children: [
             Text("Name: $name", style: const TextStyle(fontWeight: FontWeight.bold)),
             Text("Category: $category"),
-            Text("Portion: ${portionController.text.trim()}"),
             if (caloriesController.text.trim().isNotEmpty)
               Text("Calories: ${caloriesController.text.trim()}"),
             if (carbsController.text.trim().isNotEmpty)
@@ -591,7 +583,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         'searchKeywords': _buildKeywords(name),
         'category': category,
         'diabetesType': _selectedDiabetesType,
-        'portionSize': portionController.text.trim(),
         'calories': double.tryParse(caloriesController.text.trim()) ?? 0.0,
         'carbs': double.tryParse(carbsController.text.trim()) ?? 0.0,
         'protein': double.tryParse(proteinController.text.trim()) ?? 0.0,
@@ -606,7 +597,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       if (!mounted) return;
 
       nameController.clear();
-      portionController.clear();
       caloriesController.clear();
       carbsController.clear();
       proteinController.clear();
@@ -847,6 +837,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       _usersTab(),
       _foodsTab(),
       const AdminReportsScreen(),
+      const _FeedbackAdminTab(),
     ];
     return WillPopScope(
       onWillPop: () async => false,
@@ -900,43 +891,59 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ],
         ),
         body: pages[_selectedIndex],
-        // ── Same style bottom nav ────────────────────────────────────────
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: _white,
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.07),
-                  blurRadius: 12,
-                  offset: const Offset(0, -2)),
-            ],
-          ),
-          child: BottomNavigationBar(
-            currentIndex: _selectedIndex,
-            selectedItemColor: _green,
-            unselectedItemColor: _grey3,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            type: BottomNavigationBarType.fixed,
-            selectedLabelStyle: const TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w700),
-            unselectedLabelStyle: const TextStyle(fontSize: 11),
-            onTap: (i) => setState(() => _selectedIndex = i),
-            items: const [
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.dashboard_rounded),
-                  label: 'Dashboard'),
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.group_rounded),
-                  label: 'Users'),
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.restaurant_menu_rounded),
-                  label: 'Foods'),
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.bar_chart_rounded),
-                  label: 'Reports'),
-            ],
-          ),
+        // ── Bottom nav with unread badge on Feedback tab ─────────────────
+        bottomNavigationBar: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('feedback')
+              .where('read', isEqualTo: false)
+              .snapshots(),
+          builder: (context, fbSnap) {
+            final unread = fbSnap.data?.docs.length ?? 0;
+            return Container(
+              decoration: BoxDecoration(
+                color: _white,
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.07),
+                      blurRadius: 12,
+                      offset: const Offset(0, -2)),
+                ],
+              ),
+              child: BottomNavigationBar(
+                currentIndex: _selectedIndex,
+                selectedItemColor: _green,
+                unselectedItemColor: _grey3,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                type: BottomNavigationBarType.fixed,
+                selectedLabelStyle: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w700),
+                unselectedLabelStyle: const TextStyle(fontSize: 11),
+                onTap: (i) => setState(() => _selectedIndex = i),
+                items: [
+                  const BottomNavigationBarItem(
+                      icon: Icon(Icons.dashboard_rounded),
+                      label: 'Dashboard'),
+                  const BottomNavigationBarItem(
+                      icon: Icon(Icons.group_rounded),
+                      label: 'Users'),
+                  const BottomNavigationBarItem(
+                      icon: Icon(Icons.restaurant_menu_rounded),
+                      label: 'Foods'),
+                  const BottomNavigationBarItem(
+                      icon: Icon(Icons.bar_chart_rounded),
+                      label: 'Reports'),
+                  BottomNavigationBarItem(
+                      icon: _badgeIcon(
+                        Icons.feedback_rounded,
+                        unread,
+                        _selectedIndex == 4,
+                      ),
+                      label: 'Feedback'),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1789,32 +1796,46 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
         // Form
         _card(Column(children: [
-          Row(children: [
-            Expanded(child: _ff(Icons.restaurant_rounded,
-                'Food Name*', nameController)),
-            const SizedBox(width: 10),
-            Expanded(child: _ff(Icons.scale_rounded,
-                'Portion Size*', portionController)),
-          ]),
+          // Info note
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _bluePal,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _blue.withOpacity(0.3)),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.info_outline_rounded, color: _blue, size: 15),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                'Enter nutrients per 100g of food. '
+                'The app auto-calculates personalized portions for each user '
+                'based on their height, weight, activity level & diabetes type (BMR+TDEE).',
+                style: TextStyle(fontSize: 11, color: _blue, height: 1.5),
+              )),
+            ]),
+          ),
+          const SizedBox(height: 14),
+          _ff(Icons.restaurant_rounded, 'Food Name*', nameController),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _ff(
                 Icons.local_fire_department_rounded,
-                'Calories', caloriesController,
+                'Calories per 100g', caloriesController,
                 isNum: true)),
             const SizedBox(width: 10),
             Expanded(child: _ff(Icons.grain_rounded,
-                'Carbs (g)', carbsController, isNum: true)),
+                'Carbs per 100g (g)', carbsController, isNum: true)),
           ]),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _ff(
                 Icons.fitness_center_rounded,
-                'Protein (g)', proteinController,
+                'Protein per 100g (g)', proteinController,
                 isNum: true)),
             const SizedBox(width: 10),
             Expanded(child: _ff(Icons.opacity_rounded,
-                'Fat (g)', fatController, isNum: true)),
+                'Fat per 100g (g)', fatController, isNum: true)),
           ]),
           const SizedBox(height: 14),
           Row(children: [
@@ -2635,6 +2656,31 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget _foodField(IconData icon, String hint,
       TextEditingController ctrl, {bool isNumber = false}) =>
       _ff(icon, hint, ctrl, isNum: isNumber);
+
+  /// Badge icon for bottom nav
+  Widget _badgeIcon(IconData icon, int count, bool isSelected) {
+    return Stack(clipBehavior: Clip.none, children: [
+      Icon(icon),
+      if (count > 0)
+        Positioned(
+          top: -4, right: -6,
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(
+                color: _red, shape: BoxShape.circle),
+            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+            child: Text(
+              count > 99 ? '99+' : '$count',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+    ]);
+  }
 }
 
 // ── Palette — identical to admin_reports.dart ────────────────────────────────
@@ -2658,3 +2704,621 @@ const _grey2   = Color(0xFF4D6357);
 const _grey3   = Color(0xFF8FA898);
 const _grey4   = Color(0xFFD5E2DA);
 const _grey5   = Color(0xFFF0F5F2);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin Feedback Tab — view all user feedback, mark read, send replies
+// ─────────────────────────────────────────────────────────────────────────────
+class _FeedbackAdminTab extends StatefulWidget {
+  const _FeedbackAdminTab();
+
+  @override
+  State<_FeedbackAdminTab> createState() => _FeedbackAdminTabState();
+}
+
+class _FeedbackAdminTabState extends State<_FeedbackAdminTab> {
+  String _filter = 'All'; // All | Unread | Replied | Pending
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      // ── Filter bar ─────────────────────────────────────────────────
+      Container(
+        color: _bg,
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          const Text('User Feedback',
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _grey1)),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['All', 'Unread', 'Pending', 'Replied']
+                  .map((f) {
+                final sel = _filter == f;
+                return GestureDetector(
+                  onTap: () => setState(() => _filter = f),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: sel ? _green : _white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: sel ? _green : _grey4),
+                      boxShadow: sel
+                          ? [BoxShadow(
+                              color: _green.withOpacity(0.2),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2))]
+                          : [],
+                    ),
+                    child: Text(f,
+                        style: TextStyle(
+                            color: sel ? Colors.white : _grey2,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12)),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ]),
+      ),
+
+      // ── Feedback list ───────────────────────────────────────────────
+      Expanded(
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('feedback')
+              .snapshots(),
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting)
+              return const Center(
+                  child: CircularProgressIndicator(color: _green));
+            if (snap.hasError)
+              return Center(
+                  child: Text('Error: ${snap.error}',
+                      style: const TextStyle(color: _red)));
+
+            // Sort newest first in Dart — no index needed
+            var docs = [...(snap.data?.docs ?? [])]
+              ..sort((a, b) {
+                final aTs = ((a.data() as Map)['timestamp'] as Timestamp?)?.toDate();
+                final bTs = ((b.data() as Map)['timestamp'] as Timestamp?)?.toDate();
+                if (aTs == null && bTs == null) return 0;
+                if (aTs == null) return 1;
+                if (bTs == null) return -1;
+                return bTs.compareTo(aTs);
+              });
+
+            // Apply filter
+            docs = docs.where((doc) {
+              final d = doc.data() as Map<String, dynamic>;
+              final isRead    = d['read']  == true;
+              final hasReply  = (d['reply'] ?? '').toString().isNotEmpty;
+              switch (_filter) {
+                case 'Unread':  return !isRead;
+                case 'Pending': return !hasReply;
+                case 'Replied': return hasReply;
+                default:        return true;
+              }
+            }).toList();
+
+            if (docs.isEmpty)
+              return Center(
+                child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                        color: _greenPal, shape: BoxShape.circle),
+                    child: const Icon(Icons.inbox_rounded,
+                        size: 40, color: _green),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _filter == 'All'
+                        ? 'No feedback yet'
+                        : 'No $_filter feedback',
+                    style: const TextStyle(
+                        color: _grey3, fontSize: 13)),
+                ]),
+              );
+
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              itemCount: docs.length,
+              separatorBuilder: (_, __) =>
+                  const SizedBox(height: 10),
+              itemBuilder: (context, i) {
+                final doc  = docs[i];
+                final data = doc.data() as Map<String, dynamic>;
+                return _FeedbackCard(
+                    docId: doc.id, data: data);
+              },
+            );
+          },
+        ),
+      ),
+    ]);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Individual feedback card with reply functionality
+// ─────────────────────────────────────────────────────────────────────────────
+class _FeedbackCard extends StatefulWidget {
+  final String docId;
+  final Map<String, dynamic> data;
+  const _FeedbackCard({required this.docId, required this.data});
+
+  @override
+  State<_FeedbackCard> createState() => _FeedbackCardState();
+}
+
+class _FeedbackCardState extends State<_FeedbackCard> {
+  final _replyCtrl   = TextEditingController();
+  bool  _showReply   = false;
+  bool  _isSending   = false;
+
+  @override
+  void dispose() {
+    _replyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _markRead() async {
+    await FirebaseFirestore.instance
+        .collection('feedback')
+        .doc(widget.docId)
+        .update({'read': true});
+  }
+
+  Future<void> _sendReply() async {
+    final reply  = _replyCtrl.text.trim();
+    if (reply.isEmpty) return;
+    setState(() => _isSending = true);
+    try {
+      final userId = widget.data['userId'] as String? ?? '';
+      final now    = FieldValue.serverTimestamp();
+
+      // 1. Update the top-level feedback doc (admin collection)
+      await FirebaseFirestore.instance
+          .collection('feedback')
+          .doc(widget.docId)
+          .update({
+        'reply':     reply,
+        'repliedAt': now,
+        'read':      true,
+      });
+
+      // 2. Mirror reply to the user's own subcollection so they see it instantly
+      if (userId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('feedback')
+            .doc(widget.docId)
+            .update({
+          'reply':     reply,
+          'repliedAt': now,
+        });
+      }
+
+      _replyCtrl.clear();
+      if (mounted) setState(() { _showReply = false; _isSending = false; });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Reply sent to user!'),
+          backgroundColor: _green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _isSending = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Failed: $e'),
+            backgroundColor: _red),
+      );
+    }
+  }
+
+  Future<void> _deleteFeedback(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Icon(Icons.delete_forever_rounded, color: _red, size: 22),
+          SizedBox(width: 8),
+          Text('Delete Feedback',
+              style: TextStyle(color: _red, fontWeight: FontWeight.w700)),
+        ]),
+        content: const Text(
+          'Permanently delete this feedback message? This cannot be undone.',
+          style: TextStyle(color: _grey2, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel',
+                  style: TextStyle(color: _grey3))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _red, elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final userId = widget.data['userId'] as String? ?? '';
+      // Delete from top-level collection
+      await FirebaseFirestore.instance
+          .collection('feedback')
+          .doc(widget.docId)
+          .delete();
+      // Delete from user's subcollection too
+      if (userId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('feedback')
+            .doc(widget.docId)
+            .delete();
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Feedback deleted'),
+          backgroundColor: _green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Failed: $e'), backgroundColor: _red),
+      );
+    }
+  }
+
+  String _formatDate(DateTime dt) {
+    final now  = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays == 0) {
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '$h:$m ${dt.hour >= 12 ? 'PM' : 'AM'}';
+    }
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7)  return '${diff.inDays}d ago';
+    return '${dt.month}/${dt.day}/${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d          = widget.data;
+    final userName   = d['userName']     ?? 'Unknown User';
+    final email      = d['userEmail']    ?? '';
+    final msg        = d['message']      ?? '';
+    final reply      = d['reply']        ?? '';
+    final diabType   = d['diabetesType'] ?? '';
+    final isRead     = d['read']         == true;
+    final hasReply   = reply.toString().isNotEmpty;
+    final ts         = (d['timestamp'] as Timestamp?)?.toDate();
+    final rTs        = (d['repliedAt'] as Timestamp?)?.toDate();
+    final editTs     = (d['editedAt']  as Timestamp?)?.toDate();
+    final dtColor    = diabType == 'Mild' ? _green
+        : diabType == 'Severe' ? _red : _grey3;
+    final dtPal      = diabType == 'Mild' ? _greenPal
+        : diabType == 'Severe' ? _redPal : _grey5;
+
+    // Auto-mark as read when visible
+    if (!isRead) WidgetsBinding.instance.addPostFrameCallback((_) => _markRead());
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _white,
+        borderRadius: BorderRadius.circular(16),
+        border: !isRead
+            ? Border.all(color: _amber.withOpacity(0.5), width: 1.5)
+            : hasReply
+                ? Border.all(color: _green.withOpacity(0.2))
+                : null,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          // ── User info row ────────────────────────────────────────
+          Row(children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: _greenPal,
+              child: Text(
+                userName.isNotEmpty
+                    ? userName[0].toUpperCase() : '?',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: _green, fontSize: 14)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Row(children: [
+                Expanded(child: Text(userName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13, color: _grey1))),
+                // Diabetes type badge
+                if (diabType.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: dtPal,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: dtColor.withOpacity(0.3)),
+                    ),
+                    child: Text(diabType,
+                        style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: dtColor)),
+                  ),
+              ]),
+              if (email.isNotEmpty)
+                Text(email,
+                    style: const TextStyle(
+                        fontSize: 10, color: _grey3),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+            ])),
+            const SizedBox(width: 8),
+            Column(crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+              if (ts != null)
+                Text(_formatDate(ts),
+                    style: const TextStyle(
+                        fontSize: 10, color: _grey3)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: !isRead
+                      ? _amberPal
+                      : hasReply
+                          ? _greenPal
+                          : _grey5,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  !isRead ? '🔵 New'
+                      : hasReply ? '✅ Replied' : '⏳ Pending',
+                  style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: !isRead
+                          ? _amber
+                          : hasReply ? _green : _grey3),
+                ),
+              ),
+            ]),
+          ]),
+          const SizedBox(height: 12),
+
+          // ── Message bubble ───────────────────────────────────────
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _grey5,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(msg,
+                style: const TextStyle(
+                    fontSize: 13, color: _grey1, height: 1.5)),
+          ),
+          if (editTs != null) ...[
+            const SizedBox(height: 4),
+            Text('Edited ${_formatDate(editTs)}',
+                style: const TextStyle(
+                    fontSize: 9,
+                    color: _grey3,
+                    fontStyle: FontStyle.italic)),
+          ],
+
+          // ── Admin reply (if exists) ───────────────────────────────
+          if (hasReply) ...[
+            const SizedBox(height: 10),
+            Divider(height: 1, color: _grey4),
+            const SizedBox(height: 10),
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                    color: _greenPal,
+                    borderRadius: BorderRadius.circular(7)),
+                child: const Icon(
+                    Icons.admin_panel_settings_rounded,
+                    color: _green, size: 13),
+              ),
+              const SizedBox(width: 7),
+              const Text('Your reply',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _green)),
+              const Spacer(),
+              if (rTs != null)
+                Text(_formatDate(rTs),
+                    style: const TextStyle(
+                        fontSize: 10, color: _grey3)),
+            ]),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _greenPal,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: _green.withOpacity(0.2)),
+              ),
+              child: Text(reply,
+                  style: const TextStyle(
+                      fontSize: 13, color: _green, height: 1.5)),
+            ),
+          ],
+
+          const SizedBox(height: 10),
+          Divider(height: 1, color: _grey4),
+          const SizedBox(height: 10),
+
+          // ── Action buttons ────────────────────────────────────────
+          if (!_showReply)
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => setState(() => _showReply = true),
+                  icon: Icon(hasReply
+                      ? Icons.edit_rounded : Icons.reply_rounded,
+                      size: 15),
+                  label: Text(hasReply ? 'Edit Reply' : 'Reply',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _green,
+                    side: const BorderSide(color: _green),
+                    backgroundColor: _greenPal,
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: () => _deleteFeedback(context),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _red,
+                  side: BorderSide(color: _red.withOpacity(0.5)),
+                  backgroundColor: _redPal,
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 9, horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Icon(Icons.delete_rounded, size: 16),
+              ),
+            ])
+          else ...[
+            // Reply input
+            TextField(
+              controller: _replyCtrl,
+              maxLines: 3, minLines: 2,
+              enabled: !_isSending,
+              style: const TextStyle(
+                  color: _grey1, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Type your reply to ${userName.split(' ')[0]}...',
+                hintStyle: const TextStyle(
+                    color: _grey3, fontSize: 12),
+                filled: true,
+                fillColor: _isSending ? _grey5 : _white,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide:
+                        const BorderSide(color: _grey4)),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide:
+                        const BorderSide(color: _grey4)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                        color: _green, width: 1.5)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSending
+                      ? null
+                      : () => setState(() {
+                          _showReply = false;
+                          _replyCtrl.clear();
+                        }),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _grey3,
+                    side: const BorderSide(color: _grey4),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 9),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Cancel',
+                      style: TextStyle(fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed:
+                      _isSending ? null : _sendReply,
+                  icon: _isSending
+                      ? const SizedBox(
+                          width: 14, height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white))
+                      : const Icon(Icons.send_rounded,
+                          size: 15, color: Colors.white),
+                  label: Text(
+                    _isSending ? 'Sending...' : 'Send Reply',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        _isSending ? _grey4 : _green,
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 9),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ]),
+          ],
+        ]),
+      ),
+    );
+  }
+}
