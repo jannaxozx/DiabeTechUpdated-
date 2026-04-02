@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'admin_food_rules_screen.dart';
 import 'admin_food_detail_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,11 +9,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:diabetechapp/Screens/user_food_log_screen.dart';
-import 'package:diabetechapp/health/do_dont_foods_screen.dart';
 import 'landing_page.dart';
 import 'edit_user_screen.dart';
 import 'admin_reports.dart';
-import 'feedback_screen.dart';
 import '../supabase_config.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -133,7 +130,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               .collection('users')
               .doc(uid)
               .get();
-          final data = doc.data() as Map<String, dynamic>?;
+          final data = doc.data();
           userNames[uid] = data?['name'] ?? data?['email'] ?? 'Unknown';
         } catch (_) {
           userNames[uid] = 'Unknown';
@@ -144,7 +141,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final items = <Map<String, dynamic>>[];
 
       for (final doc in scanDocs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         final uid  = doc.reference.parent.parent?.id ?? '';
         final ts   = (data['timestamp'] as Timestamp?)?.toDate();
         items.add({
@@ -157,7 +154,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       }
 
       for (final doc in logDocs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         final uid  = doc.reference.parent.parent?.id ?? '';
         final ts   = (data['timestamp'] as Timestamp?)?.toDate();
         items.add({

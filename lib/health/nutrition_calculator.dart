@@ -12,7 +12,8 @@
 //
 // DIABETES TYPE RULES:
 //   Mild   → 90% of TDEE, max 50g carbs/meal, 3 meals/day
-//   Severe → 80% of TDEE, max 30g carbs/meal, 3 meals/day
+//   Severe → 80% of TDEE, max 20g carbs/meal, 3 meals/day
+//            + High-carb foods (>12g/100g) get 50% portion reduction
 //
 // ACTIVITY MULTIPLIERS (Ainsworth MET-based TDEE):
 //   Sedentary  → ×1.20  (desk job, no exercise)
@@ -45,8 +46,12 @@ class NutritionCalculator {
   // ── Max carbs per single meal ───────────────────────────────────────────────
   static const Map<String, double> _maxCarbsPerMeal = {
     'Mild':   50.0,   // 45-60 g/meal is safe for Mild
-    'Severe': 30.0,   // ≤30 g/meal for Severe (ADA guideline)
+    'Severe': 20.0,   // ≤20 g/meal for Severe (stricter control)
   };
+
+  // ── High-carb food threshold (g carbs per 100g) ─────────────────────────────
+  // If food has more carbs than this, apply extra restrictions for Severe
+  static const double _highCarbThreshold = 12.0;  // >12g carbs/100g = high-carb
 
   // ── Meals per day ───────────────────────────────────────────────────────────
   static const int _mealsPerDay = 3;
@@ -120,15 +125,22 @@ class NutritionCalculator {
 
     final calTarget   = dailyCalorieTarget(heightCm, weightKg, activityLevel, diabetesType);
     final mealBudget  = calTarget / _mealsPerDay;
-    final maxCarbs    = _maxCarbsPerMeal[diabetesType] ?? 30.0;
+    final maxCarbs    = _maxCarbsPerMeal[diabetesType] ?? 20.0;
 
     final gramsByCal  = (mealBudget / calories100g) * 100.0;
     final gramsByCarb = carbs100g > 0
         ? (maxCarbs / carbs100g) * 100.0
         : gramsByCal;
 
-    final raw = gramsByCal < gramsByCarb ? gramsByCal : gramsByCarb;
-    return ((raw.clamp(30.0, 400.0)) / 5).round() * 5.0;
+    var raw = gramsByCal < gramsByCarb ? gramsByCal : gramsByCarb;
+
+    // ── SEVERE DIABETES: Extra restriction for high-carb foods ────────────────
+    if (diabetesType == 'Severe' && carbs100g > _highCarbThreshold) {
+      // High-carb foods (>12g/100g) get cut to 50% of normal portion for Severe
+      raw = raw * 0.5;
+    }
+
+    return ((raw.clamp(30.0, 250.0)) / 5).round() * 5.0;  // Max 250g for safety
   }
 
   // ════════════════════════════════════════════════════════════════════════════
