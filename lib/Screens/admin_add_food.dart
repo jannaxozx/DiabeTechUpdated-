@@ -500,18 +500,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  if (categories['Mild'] == 'Do' ||
-                                      categories['Severe'] == 'Do')
-                                    const Chip(
-                                      label: Text('✅ Do'),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  if (categories['Mild'] == "Don't" ||
-                                      categories['Severe'] == "Don't")
-                                    const Chip(
-                                      label: Text("🚫 Don't"),
-                                      backgroundColor: Colors.red,
-                                    ),
+                                  // Removed Do/Don't chips - not needed in admin view
                                   IconButton(
                                     icon: const Icon(
                                       Icons.delete,

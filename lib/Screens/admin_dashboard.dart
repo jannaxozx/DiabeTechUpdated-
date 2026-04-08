@@ -2605,23 +2605,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       ),
                       subtitle: Padding(
                         padding: const EdgeInsets.only(top: 4),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isGood ? _greenPal : _redPal,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            isGood ? '✅ Recommended' : '❌ Avoid',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: isGood ? _green : _red,
-                            ),
-                          ),
+                        child: Text(
+                          '${data['carbs'] ?? 0}g carbs · ${data['calories'] ?? 0} cal',
+                          style: const TextStyle(fontSize: 12, color: _grey3),
                         ),
                       ),
                       trailing: IconButton(

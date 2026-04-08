@@ -28,5 +28,4 @@
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
-const String geminiApiKey =
-    'AIzaSyA4bYnw5hND486IKreLGG_kEdrlzCv_Nzs'; // Replace with new key
+const String geminiApiKey = ''; // Replace with new key

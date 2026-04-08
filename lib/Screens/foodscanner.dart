@@ -1092,9 +1092,10 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
         catLabel = 'Avoid This Food';
         break;
       default:
-        catColor = Colors.orange;
-        catIcon = Icons.help_outline;
-        catLabel = 'Not in Database';
+        // Remove "Not in Database" badge - just don't show category badge
+        catColor = Colors.grey;
+        catIcon = Icons.restaurant;
+        catLabel = ''; // Empty label - won't display
     }
     final rule = _matchedFoodRule;
     final pn = _personalizedNutrition;
@@ -1177,32 +1178,34 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: catColor.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: catColor),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(catIcon, color: catColor, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      catLabel,
-                      style: TextStyle(
-                        color: catColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+              // Only show category badge if label is not empty
+              if (catLabel.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: catColor.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: catColor),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(catIcon, color: catColor, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        catLabel,
+                        style: TextStyle(
+                          color: catColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 14),

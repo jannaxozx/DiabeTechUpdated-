@@ -965,55 +965,8 @@ class _DashboardState extends State<Dashboard> {
                             const SizedBox(height: 20),
 
                             // ── Do & Don't ────────────────────────────────
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                _sLabel("Do & Don't Eat"),
-                                // DEBUG BUTTON - Remove after testing
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final snap =
-                                        await FirebaseFirestore.instance
-                                            .collection('food_rules')
-                                            .get();
-                                    debugPrint('\n🔍 MANUAL FIRESTORE CHECK');
-                                    debugPrint(
-                                      'Total docs: ${snap.docs.length}',
-                                    );
-                                    for (var doc in snap.docs) {
-                                      debugPrint('\nDoc ID: ${doc.id}');
-                                      debugPrint('Data: ${doc.data()}');
-                                    }
-                                    debugPrint(
-                                      'User diabetesType: "$diabetesType"',
-                                    );
-                                    debugPrint('User height: $userHeight');
-                                    debugPrint('User weight: $userWeight\n');
-
-                                    if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Found ${snap.docs.length} foods. Check debug console.',
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.bug_report, size: 14),
-                                  label: const Text(
-                                    'Debug',
-                                    style: TextStyle(fontSize: 10),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.orange,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                            // ── Do & Don't ────────────────────────────────
+                            _sLabel("Do & Don't Eat"),
                             const SizedBox(height: 4),
                             Text(
                               'Based on your $diabetesType diabetes profile · portions personalized for you',
