@@ -53,7 +53,20 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _cameraController?.dispose();
+    _cleanupImage();
     super.dispose();
+  }
+
+  void _cleanupImage() {
+    if (_capturedImagePath != null) {
+      try {
+        final f = File(_capturedImagePath!);
+        if (f.existsSync()) f.deleteSync();
+        debugPrint('🗑️ Cleaned up image: $_capturedImagePath');
+      } catch (e) {
+        debugPrint('Cleanup error: $e');
+      }
+    }
   }
 
   @override
@@ -208,19 +221,8 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
     } catch (e) {
       debugPrint('Capture error: $e');
       _showError('Something went wrong: $e');
-    } finally {
-      // Clean up the temporary image file to save space
-      try {
-        if (_capturedImagePath != null) {
-          final file = File(_capturedImagePath!);
-          if (await file.exists()) {
-            await file.delete();
-            debugPrint('🗑️ Deleted temporary image: $_capturedImagePath');
-          }
-        }
-      } catch (e) {
-        debugPrint('Cleanup error: $e');
-      }
+      // The image cleanup is now handled in dispose() or when Scan Again is tapped
+      // to ensure the user can see the image in the results panel.
     }
   }
 
@@ -313,7 +315,15 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
         return null;
       }
 
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      Map<String, dynamic> decoded;
+      try {
+        decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      } catch (e) {
+        debugPrint('JSON parse error: $e');
+        _showError('AI returned an unexpected response format.');
+        return null;
+      }
+
       final text = _geminiText(decoded);
       debugPrint('Gemini text: "$text"');
       if (text == null || text.trim().isEmpty) return null;
@@ -1355,13 +1365,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
                 style: TextStyle(color: Colors.white, fontSize: 16),
               ),
               onPressed: () {
-                if (_capturedImagePath != null) {
-                  try {
-                    File(_capturedImagePath!).delete();
-                  } catch (e) {
-                    debugPrint('Delete: $e');
-                  }
-                }
+                _cleanupImage();
                 setState(() {
                   _showResult = false;
                   _detectedFood = '';
