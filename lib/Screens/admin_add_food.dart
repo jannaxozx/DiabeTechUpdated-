@@ -16,8 +16,6 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
   final TextEditingController _carbsController = TextEditingController();
   final TextEditingController _proteinController = TextEditingController();
   final TextEditingController _fatController = TextEditingController();
-  final TextEditingController _portionSizeController = TextEditingController();
-  String _category = 'Do';
   bool _isSaving = false;
   bool _isAdmin = false;
   bool _checkingAdmin = true;
@@ -37,10 +35,11 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
       return;
     }
 
-    final adminDoc = await FirebaseFirestore.instance
-        .collection('admins')
-        .doc(user.uid)
-        .get();
+    final adminDoc =
+        await FirebaseFirestore.instance
+            .collection('admins')
+            .doc(user.uid)
+            .get();
 
     if (adminDoc.exists) {
       setState(() {
@@ -54,9 +53,9 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
 
   void _denyAccess() {
     setState(() => _checkingAdmin = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Access denied: Admins only')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Access denied: Admins only')));
     Navigator.pop(context);
   }
 
@@ -72,17 +71,13 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
         .collection('food_rules')
         .doc(foodName.toLowerCase())
         .set({
-      'name': foodName,
-      'category': _category.trim().split(' ')[0], // Save only "Do" or "Don't"
-      'calories': int.tryParse(_caloriesController.text) ?? 0,
-      'carbs': double.tryParse(_carbsController.text) ?? 0,
-      'protein': double.tryParse(_proteinController.text) ?? 0,
-      'fat': double.tryParse(_fatController.text) ?? 0,
-      'portionSize': _portionSizeController.text.trim().isEmpty 
-          ? '1 serving' 
-          : _portionSizeController.text.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+          'name': foodName,
+          'calories': int.tryParse(_caloriesController.text) ?? 0,
+          'carbs': double.tryParse(_carbsController.text) ?? 0,
+          'protein': double.tryParse(_proteinController.text) ?? 0,
+          'fat': double.tryParse(_fatController.text) ?? 0,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
 
     setState(() {
       _isSaving = false;
@@ -91,8 +86,6 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
       _carbsController.clear();
       _proteinController.clear();
       _fatController.clear();
-      _portionSizeController.clear();
-      _category = 'Do';
     });
   }
 
@@ -107,9 +100,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
   @override
   Widget build(BuildContext context) {
     if (_checkingAdmin) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (!_isAdmin) {
@@ -129,7 +120,8 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
             /// ➕ ADD FOOD
             Card(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -142,13 +134,23 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    const Text(
+                      'Nutrition per 100g',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2C6E49),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
-                            controller: _portionSizeController,
+                            controller: _caloriesController,
+                            keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
-                              labelText: 'Portion Size (e.g., 1 cup, 100g)',
+                              labelText: 'Calories (per 100g)',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -159,7 +161,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                             controller: _carbsController,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
-                              labelText: 'Carbs (g)',
+                              labelText: 'Carbs (g per 100g)',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -171,10 +173,10 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       children: [
                         Expanded(
                           child: TextField(
-                            controller: _caloriesController,
+                            controller: _proteinController,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
-                              labelText: 'Calories',
+                              labelText: 'Protein (g per 100g)',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -182,25 +184,10 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextField(
-                            controller: _proteinController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Protein (g)',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
                             controller: _fatController,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
-                              labelText: 'Fat (g)',
+                              labelText: 'Fat (g per 100g)',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -208,17 +195,12 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _category,
-                      items: const [
-                        DropdownMenuItem(value: 'Do', child: Text('Do')),
-                        DropdownMenuItem(value: 'Don\'t', child: Text('Don\'t')),
-                      ],
-                      onChanged: (value) =>
-                          setState(() => _category = value!),
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Category',
+                    const Text(
+                      'Note: App will automatically determine if this food is safe (Do) or should be avoided (Don\'t) based on each user\'s diabetes type and carb content.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -230,10 +212,12 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                           backgroundColor: const Color(0xFF2C6E49),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        child: _isSaving
-                            ? const CircularProgressIndicator(
-                                color: Colors.white)
-                            : const Text('Save'),
+                        child:
+                            _isSaving
+                                ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                                : const Text('Save'),
                       ),
                     ),
                   ],
@@ -246,78 +230,60 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
             /// FOOD LIST
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('food_rules')
-                    .orderBy('updatedAt', descending: true)
-                    .snapshots(),
+                stream:
+                    FirebaseFirestore.instance
+                        .collection('food_rules')
+                        .orderBy('updatedAt', descending: true)
+                        .snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
-                    return const Center(
-                        child: CircularProgressIndicator());
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   return ListView(
-                    children: snapshot.data!.docs.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final foodName = data['name'] ?? doc.id;
-                      final category = data['category'] ?? 'Do';
-                      
-                      // More robust category cleaning - extract just "Do" or "Don't"
-                      String cleanCategory = 'Do';
-                      final categoryStr = category.toString().trim();
-                      
-                      // Remove any extra characters after "Do" or "Don't"
-                      if (categoryStr.toLowerCase().startsWith('don')) {
-                        cleanCategory = 'Don\'t';
-                      } else if (categoryStr.toLowerCase().startsWith('do')) {
-                        cleanCategory = 'Do';
-                      }
-                      
-                      debugPrint('Raw category: "$categoryStr"');
-                      debugPrint('Clean category: "$cleanCategory"');
-                      
-                      final calories = data['calories'] ?? 0;
-                      final carbs = data['carbs'] ?? 0;
-                      final protein = data['protein'] ?? 0;
-                      final fat = data['fat'] ?? 0;
+                    children:
+                        snapshot.data!.docs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final foodName = data['name'] ?? doc.id;
+                          final carbs = data['carbs'] ?? 0;
+                          final calories = data['calories'] ?? 0;
 
-                      // Check if this is old data (no nutritional info)
-                      final hasNutritionalData = data.containsKey('calories') || 
-                                               data.containsKey('carbs') || 
-                                               data.containsKey('protein') || 
-                                               data.containsKey('fat');
-
-                      return Card(
-                        child: ListTile(
-                          title: Text(foodName.toString().toUpperCase()),
-                          subtitle: Text(cleanCategory),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Chip(
-                                label: Text(cleanCategory),
-                                backgroundColor: cleanCategory == 'Do'
-                                    ? Colors.green[100]
-                                    : Colors.red[100],
+                          return Card(
+                            child: ListTile(
+                              title: Text(foodName.toString().toUpperCase()),
+                              subtitle: Text(
+                                '${carbs}g carbs, ${calories} cal per 100g',
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.delete,
-                                    color: Colors.red),
-                                onPressed: () => _deleteFood(doc.id),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Chip(
+                                    label: Text('Auto-categorized'),
+                                    backgroundColor: Colors.blue,
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () => _deleteFood(doc.id),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AdminFoodDetailScreen(foodId: doc.id),
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    }).toList(),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => AdminFoodDetailScreen(
+                                          foodId: doc.id,
+                                        ),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }).toList(),
                   );
                 },
               ),

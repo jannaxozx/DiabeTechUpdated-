@@ -318,3 +318,38 @@ class DailyGoals {
     required this.fat,
   });
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// AUTO-DETERMINE FOOD CATEGORY (Do/Don't) based on carbs and diabetes type
+// ════════════════════════════════════════════════════════════════════════════
+class FoodCategoryHelper {
+  /// Determines if food is "Do" (safe) or "Don't" (avoid) for given diabetes type
+  ///
+  /// RULES:
+  /// Severe Diabetes:
+  ///   - Don't: carbs > 20g per 100g (high-carb foods like rice, bread, sweets)
+  ///   - Do: carbs ≤ 20g per 100g (low-carb foods like vegetables, lean meat)
+  ///
+  /// Mild Diabetes:
+  ///   - Don't: carbs > 35g per 100g (very high-carb foods like sweets, white bread)
+  ///   - Do: carbs ≤ 35g per 100g (moderate-carb foods acceptable in portions)
+  static String determineCategory(double carbs100g, String diabetesType) {
+    if (diabetesType == 'Severe') {
+      return carbs100g > 20 ? 'dont' : 'do';
+    } else if (diabetesType == 'Mild') {
+      return carbs100g > 35 ? 'dont' : 'do';
+    }
+    // Default: if diabetes type unknown, use Severe rules (safer)
+    return carbs100g > 20 ? 'dont' : 'do';
+  }
+
+  /// Get user-friendly label for category
+  static String getCategoryLabel(String category) {
+    return category == 'do' ? 'Safe to Eat' : 'Avoid This Food';
+  }
+
+  /// Get color for category
+  static String getCategoryColor(String category) {
+    return category == 'do' ? 'green' : 'red';
+  }
+}

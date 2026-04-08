@@ -374,7 +374,6 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
     final lower = foodName.toLowerCase().trim();
     final variants = _buildVariants(lower);
     Map<String, dynamic>? best;
-    String bestCat = 'unknown';
     int bestScore = 0;
 
     for (final doc in _allFoodDocs) {
@@ -382,7 +381,6 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
       final nameLow =
           (doc['nameLower'] ?? name).toString().toLowerCase().trim();
       final type = (doc['diabetesType'] ?? '').toString();
-      final cat = (doc['category'] ?? '').toString();
       final kws =
           (doc['searchKeywords'] as List? ?? [])
               .map((e) => e.toString().toLowerCase())
@@ -394,24 +392,30 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
       if (score > bestScore) {
         bestScore = score;
         best = doc;
-        bestCat = cat;
       }
     }
 
-    debugPrint('Best match: "${best?['name']}" score=$bestScore cat=$bestCat');
+    debugPrint('Best match: "${best?['name']}" score=$bestScore');
 
     PersonalizedNutrition? pn;
     String category = 'unknown';
 
     if (best != null && bestScore >= 15) {
-      category = _normCat(bestCat);
+      // AUTO-DETERMINE category based on carbs and user's diabetes type
+      final carbs = _num(best['carbs']);
+      category = FoodCategoryHelper.determineCategory(carbs, _userDiabetesType);
+
+      debugPrint(
+        'Auto-determined category: $category (carbs: ${carbs}g, type: $_userDiabetesType)',
+      );
+
       pn = NutritionCalculator.calculate(
         heightCm: _userHeight,
         weightKg: _userWeight,
         activityLevel: _userActivityLevel,
         diabetesType: _userDiabetesType,
         calories100g: _num(best['calories']),
-        carbs100g: _num(best['carbs']),
+        carbs100g: carbs,
         protein100g: _num(best['protein']),
         fat100g: _num(best['fat']),
       );
@@ -561,12 +565,6 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
       }
     }
     return s.toList();
-  }
-
-  String _normCat(String c) {
-    if (c.toLowerCase() == 'do') return 'do';
-    if (c.toLowerCase() == "don't") return 'dont';
-    return 'unknown';
   }
 
   Future<void> _saveHistory() async {
