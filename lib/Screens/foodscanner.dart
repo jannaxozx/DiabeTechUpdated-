@@ -263,7 +263,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           '${knownFoods.isNotEmpty ? '\n\nFOOD DATABASE (Use these exact names if they match):\n${knownFoods.take(50).join(', ')}' : ''}';
 
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1/models/'
+        'https://generativelanguage.googleapis.com/v1beta/models/'
         '$_geminiModel:generateContent?key=$_geminiApiKey',
       );
 
