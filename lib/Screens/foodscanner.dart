@@ -39,7 +39,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   String? _capturedImagePath;
 
   static const String _geminiApiKey = geminiApiKey;
-  static const String _geminiModel = 'gemini-1.5-flash-latest';
+  static const String _geminiModel = 'gemini-1.5-flash';
 
   @override
   void initState() {
@@ -208,6 +208,19 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
     } catch (e) {
       debugPrint('Capture error: $e');
       _showError('Something went wrong: $e');
+    } finally {
+      // Clean up the temporary image file to save space
+      try {
+        if (_capturedImagePath != null) {
+          final file = File(_capturedImagePath!);
+          if (await file.exists()) {
+            await file.delete();
+            debugPrint('🗑️ Deleted temporary image: $_capturedImagePath');
+          }
+        }
+      } catch (e) {
+        debugPrint('Cleanup error: $e');
+      }
     }
   }
 
@@ -245,10 +258,10 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           '- be specific (e.g. "white rice", "ampalaya", "fried chicken")\n'
           '- if no food is visible reply: {"food":"","confidence":"none"}\n'
           '- if the food matches something in the database, use that EXACT name'
-          '$hint';
+          '${knownFoods.isNotEmpty ? '\n\nFOOD DATABASE (Use these exact names if they match):\n${knownFoods.take(50).join(', ')}' : ''}';
 
       final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/'
+        'https://generativelanguage.googleapis.com/v1/models/'
         '$_geminiModel:generateContent?key=$_geminiApiKey',
       );
 
@@ -268,10 +281,9 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
                 },
               ],
               'generationConfig': {
-                'maxOutputTokens': 100,
-                'temperature': 0.05,
-                'topP': 0.9,
-                'topK': 5,
+                'maxOutputTokens': 200,
+                'temperature': 0.1,
+                'topP': 0.95,
               },
             }),
           )
@@ -285,14 +297,19 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
       debugPrint('Gemini status: ${response.statusCode}');
 
       if (response.statusCode != 200) {
+        String userMsg = 'AI Service Error (${response.statusCode})';
         try {
           final err = jsonDecode(response.body);
-          _showError(
-            'AI error: ${err['error']?['message'] ?? 'API error'}\n\nCheck your API key.',
-          );
-        } catch (_) {
-          _showError('AI service error ${response.statusCode}.');
-        }
+          final msg = err['error']?['message']?.toString() ?? '';
+          if (msg.contains('API key not valid')) {
+            userMsg = 'Invalid API Key.\nPlease check lib/config.dart';
+          } else if (msg.contains('quota')) {
+            userMsg = 'API quota exhausted.\nPlease try again later.';
+          } else if (msg.isNotEmpty) {
+            userMsg = 'AI error: $msg';
+          }
+        } catch (_) {}
+        _showError(userMsg);
         return null;
       }
 
