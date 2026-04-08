@@ -335,21 +335,209 @@ class FoodCategoryHelper {
   ///   - Do: carbs ≤ 35g per 100g (moderate-carb foods acceptable in portions)
   static String determineCategory(double carbs100g, String diabetesType) {
     if (diabetesType == 'Severe') {
-      return carbs100g > 20 ? 'dont' : 'do';
+      return carbs100g > 20 ? "Don't" : 'Do';
     } else if (diabetesType == 'Mild') {
-      return carbs100g > 35 ? 'dont' : 'do';
+      return carbs100g > 35 ? "Don't" : 'Do';
     }
     // Default: if diabetes type unknown, use Severe rules (safer)
-    return carbs100g > 20 ? 'dont' : 'do';
+    return carbs100g > 20 ? "Don't" : 'Do';
+  }
+
+  /// Determine which diabetes types this food is suitable for
+  static List<String> determineSuitableTypes(double carbs100g) {
+    List<String> suitable = [];
+
+    // Check if suitable for Mild (carbs ≤ 35g)
+    if (carbs100g <= 35) {
+      suitable.add('Mild');
+    }
+
+    // Check if suitable for Severe (carbs ≤ 20g)
+    if (carbs100g <= 20) {
+      suitable.add('Severe');
+    }
+
+    // If not suitable for any, still add both but will be marked as "Don't"
+    if (suitable.isEmpty) {
+      suitable = ['Mild', 'Severe'];
+    }
+
+    return suitable;
   }
 
   /// Get user-friendly label for category
   static String getCategoryLabel(String category) {
-    return category == 'do' ? 'Safe to Eat' : 'Avoid This Food';
+    return category == 'Do' ? 'Safe to Eat' : 'Avoid This Food';
   }
 
   /// Get color for category
   static String getCategoryColor(String category) {
-    return category == 'do' ? 'green' : 'red';
+    return category == 'Do' ? 'green' : 'red';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// PORTION DESCRIPTION GENERATOR
+// ════════════════════════════════════════════════════════════════════════════
+class PortionDescriptionHelper {
+  /// Converts grams to human-readable portion description
+  static String gramsToHumanPortion(double grams, String foodName) {
+    final lower = foodName.toLowerCase();
+    final g = grams.round();
+
+    String fraction(double count) {
+      final whole = count.floor();
+      final rem = count - whole;
+      if (whole == 0 && rem >= 0.35) return '½';
+      if (rem >= 0.65) return '${whole + 1}';
+      if (rem >= 0.35) return '$whole½';
+      return '${whole < 1 ? 1 : whole}';
+    }
+
+    String natural(double unitGrams, String noun, String size) {
+      final count = grams / unitGrams;
+      final frac = fraction(count);
+      final plural = (count >= 1.75) ? 's' : '';
+      return '$frac $size $noun$plural';
+    }
+
+    String sliced(double sliceG, String noun, String thickness) {
+      final count = grams / sliceG;
+      final frac = fraction(count);
+      final plural = (count >= 1.75) ? 's' : '';
+      return '$frac $thickness slice$plural $noun';
+    }
+
+    // Fruits
+    if (lower.contains('apple'))
+      return natural(
+        120,
+        'apple',
+        grams < 80
+            ? 'small'
+            : grams < 160
+            ? 'medium'
+            : 'large',
+      );
+    if (lower.contains('banana') || lower.contains('saging'))
+      return natural(
+        90,
+        'banana',
+        grams < 70
+            ? 'small'
+            : grams < 120
+            ? 'medium'
+            : 'large',
+      );
+    if (lower.contains('mango') || lower.contains('mangga'))
+      return natural(
+        200,
+        'mango',
+        grams < 150
+            ? 'small'
+            : grams < 280
+            ? 'medium'
+            : 'large',
+      );
+    if (lower.contains('orange') || lower.contains('dalandan'))
+      return natural(
+        130,
+        'orange',
+        grams < 100
+            ? 'small'
+            : grams < 180
+            ? 'medium'
+            : 'large',
+      );
+    if (lower.contains('watermelon') || lower.contains('pakwan'))
+      return sliced(150, 'watermelon', grams < 100 ? 'thin' : 'thick');
+    if (lower.contains('pineapple') || lower.contains('pinya'))
+      return sliced(80, 'pineapple', grams < 60 ? 'thin' : 'medium');
+    if (lower.contains('papaya'))
+      return sliced(120, 'papaya', grams < 80 ? 'thin' : 'medium');
+    if (lower.contains('avocado') || lower.contains('abukado'))
+      return natural(150, 'avocado', grams < 100 ? 'small' : 'medium');
+    if (lower.contains('grapes') || lower.contains('ubas'))
+      return natural(5, 'grape', 'small');
+
+    // Vegetables
+    if (lower.contains('broccoli'))
+      return '${(grams / 30).toStringAsFixed(1)} cups florets';
+    if (lower.contains('carrot') || lower.contains('karot'))
+      return natural(
+        60,
+        'carrot',
+        grams < 50
+            ? 'small'
+            : grams < 100
+            ? 'medium'
+            : 'large',
+      );
+    if (lower.contains('cucumber') || lower.contains('pipino'))
+      return natural(100, 'cucumber', grams < 80 ? 'small' : 'medium');
+    if (lower.contains('tomato') || lower.contains('kamatis'))
+      return natural(
+        80,
+        'tomato',
+        grams < 60
+            ? 'small'
+            : grams < 120
+            ? 'medium'
+            : 'large',
+      );
+    if (lower.contains('lettuce') || lower.contains('salad'))
+      return '${(grams / 50).toStringAsFixed(1)} cups';
+    if (lower.contains('spinach'))
+      return '${(grams / 30).toStringAsFixed(1)} cups';
+
+    // Proteins
+    if (lower.contains('chicken') || lower.contains('manok'))
+      return '${g}g (${(grams / 85).toStringAsFixed(1)} palm-sized pieces)';
+    if (lower.contains('fish') ||
+        lower.contains('isda') ||
+        lower.contains('salmon') ||
+        lower.contains('tuna'))
+      return '${g}g (${(grams / 85).toStringAsFixed(1)} palm-sized fillets)';
+    if (lower.contains('beef') ||
+        lower.contains('pork') ||
+        lower.contains('baboy'))
+      return '${g}g (${(grams / 85).toStringAsFixed(1)} palm-sized pieces)';
+    if (lower.contains('egg') || lower.contains('itlog'))
+      return '${(grams / 50).round()} medium egg${grams >= 75 ? 's' : ''}';
+    if (lower.contains('tofu'))
+      return '${g}g (${(grams / 80).toStringAsFixed(1)} cubes)';
+
+    // Grains & Starches
+    if (lower.contains('rice') || lower.contains('kanin'))
+      return '${(grams / 158).toStringAsFixed(1)} cup${grams >= 237 ? 's' : ''} cooked';
+    if (lower.contains('bread') || lower.contains('tinapay'))
+      return '${(grams / 30).round()} slice${grams >= 45 ? 's' : ''}';
+    if (lower.contains('pasta'))
+      return '${(grams / 140).toStringAsFixed(1)} cup${grams >= 210 ? 's' : ''} cooked';
+    if (lower.contains('potato') || lower.contains('patatas'))
+      return natural(
+        150,
+        'potato',
+        grams < 120
+            ? 'small'
+            : grams < 200
+            ? 'medium'
+            : 'large',
+      );
+    if (lower.contains('camote') ||
+        lower.contains('kamote') ||
+        lower.contains('sweet potato'))
+      return natural(
+        130,
+        'camote',
+        grams < 100
+            ? 'small'
+            : grams < 180
+            ? 'medium'
+            : 'large',
+      );
+
+    // Default: just show grams
+    return '${g}g';
   }
 }

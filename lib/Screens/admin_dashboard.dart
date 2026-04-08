@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'admin_food_detail_screen.dart';
+import 'admin_data_migration.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +14,7 @@ import 'landing_page.dart';
 import 'edit_user_screen.dart';
 import 'admin_reports.dart';
 import '../supabase_config.dart';
+import '../health/nutrition_calculator.dart'; // ✅ ADD THIS
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -627,19 +629,64 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
       _updateStatus('Saving to database...');
 
+      // Get nutrition values
+      final calories = double.tryParse(caloriesController.text.trim()) ?? 0.0;
+      final carbs = double.tryParse(carbsController.text.trim()) ?? 0.0;
+      final protein = double.tryParse(proteinController.text.trim()) ?? 0.0;
+      final fat = double.tryParse(fatController.text.trim()) ?? 0.0;
+
+      // Auto-determine suitable diabetes types
+      final suitableTypes = FoodCategoryHelper.determineSuitableTypes(carbs);
+
+      // Auto-calculate categories for each diabetes type
+      final Map<String, String> categories = {};
+      for (final type in ['Mild', 'Severe']) {
+        categories[type] = FoodCategoryHelper.determineCategory(carbs, type);
+      }
+
+      // Auto-calculate portion sizes for each diabetes type
+      final Map<String, String> portionSizes = {};
+      for (final type in ['Mild', 'Severe']) {
+        final grams = NutritionCalculator.recommendedGrams(
+          heightCm: 160,
+          weightKg: 60,
+          activityLevel: 'Light',
+          diabetesType: type,
+          calories100g: calories,
+          carbs100g: carbs,
+        );
+        portionSizes[type] = PortionDescriptionHelper.gramsToHumanPortion(
+          grams,
+          name,
+        );
+      }
+
+      debugPrint('=== SAVING FOOD (Admin Dashboard) ===');
+      debugPrint('Name: $name');
+      debugPrint('Carbs: ${carbs}g per 100g');
+      debugPrint('Suitable for: $suitableTypes');
+      debugPrint('Categories: $categories');
+      debugPrint('Portion sizes: $portionSizes');
+      debugPrint('======================================');
+
       await FirebaseFirestore.instance
           .collection('food_rules')
-          .add({
+          .doc(name.toLowerCase()) // ✅ Use food name as document ID
+          .set({
             'name': name,
             'nameLower': name.toLowerCase().trim(),
             'searchKeywords': _buildKeywords(name),
-            'calories': double.tryParse(caloriesController.text.trim()) ?? 0.0,
-            'carbs': double.tryParse(carbsController.text.trim()) ?? 0.0,
-            'protein': double.tryParse(proteinController.text.trim()) ?? 0.0,
-            'fat': double.tryParse(fatController.text.trim()) ?? 0.0,
+            'calories': calories,
+            'carbs': carbs,
+            'protein': protein,
+            'fat': fat,
             'imageUrl': imageUrl,
             'imagePath': imagePath,
+            'suitableFor': suitableTypes, // ✅ NEW STRUCTURE
+            'categories': categories, // ✅ NEW STRUCTURE
+            'portionSizes': portionSizes, // ✅ NEW STRUCTURE
             'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           })
           .timeout(
             const Duration(seconds: 15),

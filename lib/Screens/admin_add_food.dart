@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 import 'admin_food_detail_screen.dart';
+import '../health/nutrition_calculator.dart';
 
 class AdminFoodRulesScreen extends StatefulWidget {
   const AdminFoodRulesScreen({Key? key}) : super(key: key);
@@ -20,8 +24,8 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
   bool _isAdmin = false;
   bool _checkingAdmin = true;
 
-  String _diabetesType = 'Mild';
-  String _category = 'Do';
+  File? _selectedImage;
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -62,37 +66,171 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
     Navigator.pop(context);
   }
 
-  /// ➕ SAVE FOOD
+  /// 📷 PICK IMAGE
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error picking image: $e')));
+    }
+  }
+
+  /// ☁️ UPLOAD IMAGE TO FIREBASE STORAGE
+  Future<String?> _uploadImage(String foodName) async {
+    if (_selectedImage == null) return null;
+
+    try {
+      final String fileName =
+          '${foodName.toLowerCase().replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final Reference storageRef = FirebaseStorage.instance
+          .ref()
+          .child('food_images')
+          .child(fileName);
+
+      final UploadTask uploadTask = storageRef.putFile(_selectedImage!);
+      final TaskSnapshot snapshot = await uploadTask;
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('Error uploading image: $e');
+      return null;
+    }
+  }
+
+  /// ➕ SAVE FOOD WITH AUTO-CALCULATION
   Future<void> _saveFoodRule() async {
     final foodName = _foodController.text.trim();
 
-    if (foodName.isEmpty) return;
+    if (foodName.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter food name')));
+      return;
+    }
 
     setState(() => _isSaving = true);
 
-    await FirebaseFirestore.instance
-        .collection('food_rules')
-        .doc(foodName.toLowerCase())
-        .set({
-          'name': foodName,
-          'calories': int.tryParse(_caloriesController.text) ?? 0,
-          'carbs': double.tryParse(_carbsController.text) ?? 0,
-          'protein': double.tryParse(_proteinController.text) ?? 0,
-          'fat': double.tryParse(_fatController.text) ?? 0,
-          'diabetesType': _diabetesType,
-          'category': _category,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+    try {
+      // Get nutrition values
+      final calories = double.tryParse(_caloriesController.text) ?? 0;
+      final carbs = double.tryParse(_carbsController.text) ?? 0;
+      final protein = double.tryParse(_proteinController.text) ?? 0;
+      final fat = double.tryParse(_fatController.text) ?? 0;
 
-    setState(() {
-      _isSaving = false;
-      _foodController.clear();
-      _caloriesController.clear();
-      _carbsController.clear();
-      _proteinController.clear();
-      _fatController.clear();
-    });
+      // Upload image if selected
+      String? imageUrl;
+      if (_selectedImage != null) {
+        imageUrl = await _uploadImage(foodName);
+      }
+
+      // Auto-determine suitable diabetes types
+      final suitableTypes = FoodCategoryHelper.determineSuitableTypes(carbs);
+
+      // Auto-calculate categories for each diabetes type
+      final Map<String, String> categories = {};
+      for (final type in ['Mild', 'Severe']) {
+        categories[type] = FoodCategoryHelper.determineCategory(carbs, type);
+      }
+
+      // Auto-calculate portion sizes for each diabetes type
+      // Using average profile: 160cm, 60kg, Light activity
+      final Map<String, String> portionSizes = {};
+      for (final type in ['Mild', 'Severe']) {
+        final grams = NutritionCalculator.recommendedGrams(
+          heightCm: 160,
+          weightKg: 60,
+          activityLevel: 'Light',
+          diabetesType: type,
+          calories100g: calories,
+          carbs100g: carbs,
+        );
+        portionSizes[type] = PortionDescriptionHelper.gramsToHumanPortion(
+          grams,
+          foodName,
+        );
+      }
+
+      // DEBUG: Print what we're about to save
+      debugPrint('=== SAVING FOOD ===');
+      debugPrint('Name: $foodName');
+      debugPrint('Carbs: ${carbs}g per 100g');
+      debugPrint('Suitable for: $suitableTypes');
+      debugPrint('Categories: $categories');
+      debugPrint('Portion sizes: $portionSizes');
+      debugPrint('==================');
+
+      // Save to Firestore
+      debugPrint('📝 Calling Firestore.set()...');
+      try {
+        await FirebaseFirestore.instance
+            .collection('food_rules')
+            .doc(foodName.toLowerCase())
+            .set({
+              'name': foodName,
+              'nameLower':
+                  foodName.toLowerCase().trim(), // ✅ ADD THIS for search
+              'calories': calories,
+              'carbs': carbs,
+              'protein': protein,
+              'fat': fat,
+              'imageUrl': imageUrl ?? '',
+              'suitableFor': suitableTypes,
+              'categories': categories,
+              'portionSizes': portionSizes,
+              'createdAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+        debugPrint('✅ Firestore save SUCCESS!');
+      } catch (e) {
+        debugPrint('❌ Firestore save FAILED: $e');
+        if (!mounted) return;
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('❌ Save failed: $e')));
+        return;
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ $foodName saved successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      setState(() {
+        _isSaving = false;
+        _foodController.clear();
+        _caloriesController.clear();
+        _carbsController.clear();
+        _proteinController.clear();
+        _fatController.clear();
+        _selectedImage = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error saving food: $e')));
+    }
   }
 
   /// 🗑 DELETE FOOD
@@ -140,6 +278,49 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+
+                    /// 📷 IMAGE PICKER
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: Container(
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child:
+                            _selectedImage != null
+                                ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.file(
+                                    _selectedImage!,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                  ),
+                                )
+                                : Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.add_photo_alternate,
+                                      size: 40,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Tap to upload food image',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
                     const Text(
                       'Nutrition per 100g',
                       style: TextStyle(
@@ -147,53 +328,6 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF2C6E49),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _diabetesType,
-                            decoration: const InputDecoration(
-                              labelText: 'Diabetes Type',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'Mild',
-                                child: Text('Mild'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Severe',
-                                child: Text('Severe'),
-                              ),
-                            ],
-                            onChanged:
-                                (v) => setState(() => _diabetesType = v!),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _category,
-                            decoration: const InputDecoration(
-                              labelText: 'Category',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'Do',
-                                child: Text('✅ Do (Safe)'),
-                              ),
-                              DropdownMenuItem(
-                                value: "Don't",
-                                child: Text("🚫 Don't (Avoid)"),
-                              ),
-                            ],
-                            onChanged: (v) => setState(() => _category = v!),
-                          ),
-                        ),
-                      ],
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -248,12 +382,31 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Note: Select the diabetes type and category (Do/Don\'t) for this food. Users will only see foods matching their diabetes type.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                        color: Colors.grey,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome,
+                            color: Colors.blue.shade700,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Diabetes type, category (Do/Don\'t), and portion sizes will be automatically calculated based on carb content.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.blue.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -270,7 +423,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                                 ? const CircularProgressIndicator(
                                   color: Colors.white,
                                 )
-                                : const Text('Save'),
+                                : const Text('Save Food'),
                       ),
                     ),
                   ],
@@ -300,28 +453,65 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                           final foodName = data['name'] ?? doc.id;
                           final carbs = data['carbs'] ?? 0;
                           final calories = data['calories'] ?? 0;
-                          final diabetesType =
-                              data['diabetesType'] ?? 'Not set';
-                          final category = data['category'] ?? 'Not set';
+                          final suitableFor =
+                              (data['suitableFor'] as List?)?.cast<String>() ??
+                              [];
+                          final categories =
+                              data['categories'] as Map<String, dynamic>? ?? {};
+                          final imageUrl = data['imageUrl'] ?? '';
 
                           return Card(
                             child: ListTile(
+                              leading:
+                                  imageUrl.isNotEmpty
+                                      ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          imageUrl,
+                                          width: 50,
+                                          height: 50,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (_, __, ___) => Container(
+                                                width: 50,
+                                                height: 50,
+                                                color: Colors.grey.shade200,
+                                                child: const Icon(
+                                                  Icons.fastfood,
+                                                ),
+                                              ),
+                                        ),
+                                      )
+                                      : Container(
+                                        width: 50,
+                                        height: 50,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: const Icon(Icons.fastfood),
+                                      ),
                               title: Text(foodName.toString().toUpperCase()),
                               subtitle: Text(
-                                '${carbs}g carbs, ${calories} cal per 100g\n$diabetesType • $category',
+                                '${carbs}g carbs, $calories cal per 100g\n${suitableFor.join(", ")}',
                               ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Chip(
-                                    label: Text(
-                                      category == 'Do' ? '✅ Do' : "🚫 Don't",
+                                  if (categories['Mild'] == 'Do' ||
+                                      categories['Severe'] == 'Do')
+                                    const Chip(
+                                      label: Text('✅ Do'),
+                                      backgroundColor: Colors.green,
                                     ),
-                                    backgroundColor:
-                                        category == 'Do'
-                                            ? Colors.green
-                                            : Colors.red,
-                                  ),
+                                  if (categories['Mild'] == "Don't" ||
+                                      categories['Severe'] == "Don't")
+                                    const Chip(
+                                      label: Text("🚫 Don't"),
+                                      backgroundColor: Colors.red,
+                                    ),
                                   IconButton(
                                     icon: const Icon(
                                       Icons.delete,

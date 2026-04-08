@@ -128,8 +128,10 @@ class _DashboardState extends State<Dashboard> {
     super.initState();
     user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      _fetchDashboardData();
-      _fetchUserProfile();
+      // Load profile first, then dashboard data
+      _fetchUserProfile().then((_) {
+        _fetchDashboardData();
+      });
     }
   }
 
@@ -137,8 +139,19 @@ class _DashboardState extends State<Dashboard> {
     if (user == null) return;
     try {
       final doc = await _firestore.collection('users').doc(user!.uid).get();
-      if (!doc.exists) return;
+      if (!doc.exists) {
+        debugPrint('⚠️ User document does not exist!');
+        return;
+      }
       final data = doc.data() ?? {};
+
+      debugPrint('=== USER PROFILE ===');
+      debugPrint('User ID: ${user!.uid}');
+      debugPrint('Raw diabetesType: ${data['diabetesType']}');
+      debugPrint('Raw height: ${data['height']}');
+      debugPrint('Raw weight: ${data['weight']}');
+      debugPrint('Raw activityLevel: ${data['activityLevel']}');
+
       setState(() {
         diabetesType = (data['diabetesType'] ?? 'Not set').toString();
         userHeight = double.tryParse(data['height']?.toString() ?? '');
@@ -151,6 +164,12 @@ class _DashboardState extends State<Dashboard> {
             data['profileImage'] ??
             data['imageUrl'];
       });
+
+      debugPrint('Parsed diabetesType: "$diabetesType"');
+      debugPrint('Parsed height: $userHeight');
+      debugPrint('Parsed weight: $userWeight');
+      debugPrint('Parsed activityLevel: $activityLevel');
+      debugPrint('===================');
     } catch (e) {
       debugPrint('Error fetching user profile: $e');
       setState(() => diabetesType = 'Error loading type');
@@ -946,7 +965,55 @@ class _DashboardState extends State<Dashboard> {
                             const SizedBox(height: 20),
 
                             // ── Do & Don't ────────────────────────────────
-                            _sLabel("Do & Don't Eat"),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _sLabel("Do & Don't Eat"),
+                                // DEBUG BUTTON - Remove after testing
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final snap =
+                                        await FirebaseFirestore.instance
+                                            .collection('food_rules')
+                                            .get();
+                                    debugPrint('\n🔍 MANUAL FIRESTORE CHECK');
+                                    debugPrint(
+                                      'Total docs: ${snap.docs.length}',
+                                    );
+                                    for (var doc in snap.docs) {
+                                      debugPrint('\nDoc ID: ${doc.id}');
+                                      debugPrint('Data: ${doc.data()}');
+                                    }
+                                    debugPrint(
+                                      'User diabetesType: "$diabetesType"',
+                                    );
+                                    debugPrint('User height: $userHeight');
+                                    debugPrint('User weight: $userWeight\n');
+
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Found ${snap.docs.length} foods. Check debug console.',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.bug_report, size: 14),
+                                  label: const Text(
+                                    'Debug',
+                                    style: TextStyle(fontSize: 10),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.orange,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 4),
                             Text(
                               'Based on your $diabetesType diabetes profile · portions personalized for you',
@@ -1798,7 +1865,10 @@ class _DashboardState extends State<Dashboard> {
         ),
       );
     }
+
+    // Add key to force rebuild when diabetesType changes
     return SizedBox(
+      key: ValueKey('dodont_$diabetesType'), // ✅ Force rebuild on type change
       height: 130,
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('food_rules').snapshots(),
@@ -1808,11 +1878,58 @@ class _DashboardState extends State<Dashboard> {
               child: CircularProgressIndicator(color: _green),
             );
           final docs = snapshot.data!.docs;
+
+          // DEBUG: Print all foods in database
+          debugPrint('=== DO/DON\'T DEBUG ===');
+          debugPrint('Total foods in database: ${docs.length}');
+          debugPrint('User diabetes type: "$diabetesType"');
+          debugPrint('User height: $userHeight');
+          debugPrint('User weight: $userWeight');
+          debugPrint('User activity: $activityLevel');
+
+          for (var doc in docs) {
+            final d = doc.data() as Map<String, dynamic>?;
+            debugPrint('\n--- Food: ${d?['name']} ---');
+            debugPrint('  Document ID: ${doc.id}');
+            debugPrint('  nameLower: ${d?['nameLower']}');
+            debugPrint('  carbs: ${d?['carbs']}g per 100g');
+            debugPrint('  calories: ${d?['calories']} per 100g');
+            debugPrint('  diabetesType (OLD): ${d?['diabetesType']}');
+            debugPrint('  suitableFor (NEW): ${d?['suitableFor']}');
+            debugPrint('  category (OLD): ${d?['category']}');
+            debugPrint('  categories (NEW): ${d?['categories']}');
+            debugPrint('  portionSizes: ${d?['portionSizes']}');
+            debugPrint('  imageUrl: ${d?['imageUrl']}');
+          }
+
+          // Filter foods suitable for user's diabetes type
+          // BACKWARD COMPATIBLE: supports both old and new data structures
           final filtered =
               docs.where((doc) {
                 final d = doc.data() as Map<String, dynamic>?;
-                return d?['diabetesType']?.toString() == diabetesType;
+
+                // NEW STRUCTURE: check suitableFor array
+                final suitableFor =
+                    (d?['suitableFor'] as List?)?.cast<String>() ?? [];
+                if (suitableFor.isNotEmpty) {
+                  final matches = suitableFor.contains(diabetesType);
+                  debugPrint(
+                    '${d?['name']}: NEW structure, suitableFor=$suitableFor, matches=$matches',
+                  );
+                  return matches;
+                }
+
+                // OLD STRUCTURE: check diabetesType string
+                final oldType = d?['diabetesType']?.toString();
+                final matches = oldType == diabetesType;
+                debugPrint(
+                  '${d?['name']}: OLD structure, diabetesType=$oldType, matches=$matches',
+                );
+                return matches;
               }).toList();
+
+          debugPrint('Filtered foods count: ${filtered.length}');
+
           filtered.sort((a, b) {
             final aT = a['createdAt'] as Timestamp?;
             final bT = b['createdAt'] as Timestamp?;
@@ -1821,9 +1938,67 @@ class _DashboardState extends State<Dashboard> {
             if (bT == null) return -1;
             return bT.compareTo(aT);
           });
-          final doFoods = filtered.where((d) => d['category'] == 'Do').toList();
+
+          // Filter by category for user's diabetes type
+          // BACKWARD COMPATIBLE: supports both old and new data structures
+          final doFoods =
+              filtered.where((doc) {
+                final d = doc.data() as Map<String, dynamic>?;
+
+                // NEW STRUCTURE: check categories map
+                final categories =
+                    d?['categories'] as Map<String, dynamic>? ?? {};
+                if (categories.isNotEmpty) {
+                  final isDo = categories[diabetesType] == 'Do';
+                  debugPrint(
+                    '${d?['name']}: NEW categories, value=${categories[diabetesType]}, isDo=$isDo',
+                  );
+                  return isDo;
+                }
+
+                // OLD STRUCTURE: check category string
+                final oldCat = d?['category']?.toString();
+                final isDo = oldCat == 'Do';
+                debugPrint('${d?['name']}: OLD category=$oldCat, isDo=$isDo');
+                return isDo;
+              }).toList();
+
           final dontFoods =
-              filtered.where((d) => d['category'] == "Don't").toList();
+              filtered.where((doc) {
+                final d = doc.data() as Map<String, dynamic>?;
+
+                // NEW STRUCTURE: check categories map
+                final categories =
+                    d?['categories'] as Map<String, dynamic>? ?? {};
+                if (categories.isNotEmpty) {
+                  final isDont = categories[diabetesType] == "Don't";
+                  debugPrint(
+                    '${d?['name']}: NEW categories, value=${categories[diabetesType]}, isDont=$isDont',
+                  );
+                  return isDont;
+                }
+
+                // OLD STRUCTURE: check category string
+                final oldCat = d?['category']?.toString();
+                final isDont = oldCat == "Don't";
+                debugPrint(
+                  '${d?['name']}: OLD category=$oldCat, isDont=$isDont',
+                );
+                return isDont;
+              }).toList();
+
+          debugPrint('DO foods count: ${doFoods.length}');
+          debugPrint('DON\'T foods count: ${dontFoods.length}');
+          debugPrint('=== END DEBUG ===');
+
+          // TEMPORARY DEBUG: Show all foods regardless of filtering
+          if (doFoods.isEmpty && dontFoods.isEmpty && filtered.isNotEmpty) {
+            debugPrint(
+              '⚠️ WARNING: Foods were filtered but none matched Do/Don\'t categories!',
+            );
+            debugPrint('This means the categories map might be wrong.');
+          }
+
           return ListView(
             scrollDirection: Axis.horizontal,
             children: [
@@ -1831,7 +2006,7 @@ class _DashboardState extends State<Dashboard> {
                 onTap:
                     () => _openDoDontScreen(
                       '✅ DO — Recommended Foods',
-                      _buildFoodCardsFromDocs(doFoods),
+                      _buildSimpleFoodCards(doFoods),
                       doFoods.length,
                     ),
                 child: _doDontChip(
@@ -1846,7 +2021,7 @@ class _DashboardState extends State<Dashboard> {
                 onTap:
                     () => _openDoDontScreen(
                       "🚫 DON'T — Foods to Avoid",
-                      _buildFoodCardsFromDocs(dontFoods),
+                      _buildSimpleFoodCards(dontFoods),
                       dontFoods.length,
                     ),
                 child: _doDontChip(
@@ -2069,6 +2244,142 @@ class _DashboardState extends State<Dashboard> {
         fat100g: _d(data['fat']),
       );
       return _buildFoodCard(imageUrl, name, data, pn);
+    }).toList();
+  }
+
+  // ── SIMPLIFIED: builds simple food cards (image, name, portion only) ──────
+  List<Widget> _buildSimpleFoodCards(List<QueryDocumentSnapshot> foodDocs) {
+    return foodDocs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final name = data['name'] ?? 'Unknown Food';
+      final imageUrl = data['imageUrl'] ?? '';
+
+      // BACKWARD COMPATIBLE: Get portion size from new or old structure
+      String portionSize = '100g';
+      final portionSizes = data['portionSizes'] as Map<String, dynamic>? ?? {};
+      if (portionSizes.isNotEmpty && portionSizes[diabetesType] != null) {
+        // NEW STRUCTURE: use portionSizes map
+        portionSize = portionSizes[diabetesType];
+      } else {
+        // OLD STRUCTURE: calculate portion on the fly
+        if (userHeight != null && userWeight != null) {
+          final grams = NutritionCalculator.recommendedGrams(
+            heightCm: userHeight!,
+            weightKg: userWeight!,
+            activityLevel: activityLevel ?? 'Light',
+            diabetesType: diabetesType,
+            calories100g: _d(data['calories']),
+            carbs100g: _d(data['carbs']),
+          );
+          portionSize = PortionDescriptionHelper.gramsToHumanPortion(
+            grams,
+            name,
+          );
+        }
+      }
+
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        decoration: BoxDecoration(
+          color: _white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Food Image
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child:
+                    imageUrl.isNotEmpty
+                        ? Image.network(
+                          imageUrl,
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          loadingBuilder:
+                              (_, child, p) =>
+                                  p == null
+                                      ? child
+                                      : Container(
+                                        width: 80,
+                                        height: 80,
+                                        color: _grey5,
+                                        child: const Center(
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: _green,
+                                          ),
+                                        ),
+                                      ),
+                          errorBuilder:
+                              (_, __, ___) => Container(
+                                width: 80,
+                                height: 80,
+                                color: _grey5,
+                                child: const Icon(
+                                  Icons.fastfood_rounded,
+                                  color: _grey3,
+                                  size: 32,
+                                ),
+                              ),
+                        )
+                        : Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: _grey5,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.fastfood_rounded,
+                            color: _grey3,
+                            size: 32,
+                          ),
+                        ),
+              ),
+              const SizedBox(width: 14),
+
+              // Food Name and Portion
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _grey1,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      portionSize,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _grey3,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }).toList();
   }
 

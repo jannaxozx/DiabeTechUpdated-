@@ -495,7 +495,18 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
       final name = (doc['name'] ?? '').toString().toLowerCase().trim();
       final nameLow =
           (doc['nameLower'] ?? name).toString().toLowerCase().trim();
-      final type = (doc['diabetesType'] ?? '').toString();
+
+      // BACKWARD COMPATIBLE: Check both old and new structure
+      String type = '';
+      final suitableFor = (doc['suitableFor'] as List?)?.cast<String>() ?? [];
+      if (suitableFor.isNotEmpty) {
+        // NEW STRUCTURE: check if user's diabetes type is in suitableFor array
+        type = suitableFor.contains(_userDiabetesType) ? _userDiabetesType : '';
+      } else {
+        // OLD STRUCTURE: use diabetesType field
+        type = (doc['diabetesType'] ?? '').toString();
+      }
+
       final kws =
           (doc['searchKeywords'] as List? ?? [])
               .map((e) => e.toString().toLowerCase())
