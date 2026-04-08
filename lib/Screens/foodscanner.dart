@@ -39,7 +39,7 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   String? _capturedImagePath;
 
   static const String _geminiApiKey = geminiApiKey;
-  static const String _geminiModel = 'gemini-1.5-flash';
+  static const String _geminiModel = 'gemini-1.5-flash-latest';
 
   @override
   void initState() {
@@ -207,9 +207,17 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
         return;
       }
       debugPrint('Identified: "$foodName"');
+      if (_allFoodDocs.isEmpty) {
+        debugPrint('⚠️ Cannot match: Food database is empty or still loading.');
+        _showError(
+          'Scanning works, but your food database is still loading.\n\n'
+          'Please wait a few seconds and try again.',
+        );
+        return;
+      }
       setState(() {
         _detectedFood = foodName.trim();
-        _loadingMessage = 'Checking food database...';
+        _loadingMessage = 'Matching with database...';
       });
       _matchFoodLocally(_detectedFood);
       await _saveHistory();
@@ -307,6 +315,9 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
             userMsg = 'Invalid API Key.\nPlease check lib/config.dart';
           } else if (msg.contains('quota')) {
             userMsg = 'API quota exhausted.\nPlease try again later.';
+          } else if (msg.contains('not found')) {
+            userMsg = 'AI Model Error.\nCheck Debug Console for details.';
+            _debugListModels(); // List models to console for debugging
           } else if (msg.isNotEmpty) {
             userMsg = 'AI error: $msg';
           }
@@ -346,6 +357,20 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           ?.toString();
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Diagnostic: Lists available models to the debug console
+  Future<void> _debugListModels() async {
+    try {
+      final res = await http.get(Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models?key=$_geminiApiKey',
+      ));
+      debugPrint('--- SUPPORTED MODELS FOR THIS KEY ---');
+      debugPrint(res.body);
+      debugPrint('---------------------------------------');
+    } catch (e) {
+      debugPrint('Failed to list models: $e');
     }
   }
 
