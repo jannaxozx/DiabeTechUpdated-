@@ -408,8 +408,11 @@ class PortionDescriptionHelper {
       return '$frac $thickness slice$plural $noun';
     }
 
-    // Fruits
-    if (lower.contains('apple'))
+    // Fruits (check pineapple BEFORE apple to avoid false match)
+    if (lower.contains('pineapple') || lower.contains('pinya')) {
+      return sliced(80, 'pineapple', grams < 60 ? 'thin' : 'medium');
+    }
+    if (lower.contains('apple')) {
       return natural(
         120,
         'apple',
@@ -419,7 +422,8 @@ class PortionDescriptionHelper {
             ? 'medium'
             : 'large',
       );
-    if (lower.contains('banana') || lower.contains('saging'))
+    }
+    if (lower.contains('banana') || lower.contains('saging')) {
       return natural(
         90,
         'banana',
@@ -429,7 +433,8 @@ class PortionDescriptionHelper {
             ? 'medium'
             : 'large',
       );
-    if (lower.contains('mango') || lower.contains('mangga'))
+    }
+    if (lower.contains('mango') || lower.contains('mangga')) {
       return natural(
         200,
         'mango',
@@ -439,7 +444,8 @@ class PortionDescriptionHelper {
             ? 'medium'
             : 'large',
       );
-    if (lower.contains('orange') || lower.contains('dalandan'))
+    }
+    if (lower.contains('orange') || lower.contains('dalandan')) {
       return natural(
         130,
         'orange',
@@ -449,16 +455,24 @@ class PortionDescriptionHelper {
             ? 'medium'
             : 'large',
       );
-    if (lower.contains('watermelon') || lower.contains('pakwan'))
+    }
+    if (lower.contains('watermelon') || lower.contains('pakwan')) {
       return sliced(150, 'watermelon', grams < 100 ? 'thin' : 'thick');
-    if (lower.contains('pineapple') || lower.contains('pinya'))
-      return sliced(80, 'pineapple', grams < 60 ? 'thin' : 'medium');
-    if (lower.contains('papaya'))
+    }
+    if (lower.contains('papaya')) {
       return sliced(120, 'papaya', grams < 80 ? 'thin' : 'medium');
-    if (lower.contains('avocado') || lower.contains('abukado'))
+    }
+    if (lower.contains('guava') || lower.contains('bayabas')) {
+      return sliced(55, 'guava', grams < 40 ? 'thin' : 'medium');
+    }
+    if (lower.contains('avocado') || lower.contains('abukado')) {
       return natural(150, 'avocado', grams < 100 ? 'small' : 'medium');
-    if (lower.contains('grapes') || lower.contains('ubas'))
-      return natural(5, 'grape', 'small');
+    }
+    if (lower.contains('grape') || lower.contains('ubas')) {
+      // Count individual grapes (about 5g each)
+      final count = (grams / 5).round();
+      return '$count piece${count > 1 ? 's' : ''}';
+    }
 
     // Vegetables
     if (lower.contains('broccoli'))
