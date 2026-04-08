@@ -20,6 +20,9 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
   bool _isAdmin = false;
   bool _checkingAdmin = true;
 
+  String _diabetesType = 'Mild';
+  String _category = 'Do';
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +79,9 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
           'carbs': double.tryParse(_carbsController.text) ?? 0,
           'protein': double.tryParse(_proteinController.text) ?? 0,
           'fat': double.tryParse(_fatController.text) ?? 0,
+          'diabetesType': _diabetesType,
+          'category': _category,
+          'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
@@ -146,6 +152,53 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                     Row(
                       children: [
                         Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _diabetesType,
+                            decoration: const InputDecoration(
+                              labelText: 'Diabetes Type',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Mild',
+                                child: Text('Mild'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Severe',
+                                child: Text('Severe'),
+                              ),
+                            ],
+                            onChanged:
+                                (v) => setState(() => _diabetesType = v!),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _category,
+                            decoration: const InputDecoration(
+                              labelText: 'Category',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'Do',
+                                child: Text('✅ Do (Safe)'),
+                              ),
+                              DropdownMenuItem(
+                                value: "Don't",
+                                child: Text("🚫 Don't (Avoid)"),
+                              ),
+                            ],
+                            onChanged: (v) => setState(() => _category = v!),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
                           child: TextField(
                             controller: _caloriesController,
                             keyboardType: TextInputType.number,
@@ -196,7 +249,7 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'Note: App will automatically determine if this food is safe (Do) or should be avoided (Don\'t) based on each user\'s diabetes type and carb content.',
+                      'Note: Select the diabetes type and category (Do/Don\'t) for this food. Users will only see foods matching their diabetes type.',
                       style: TextStyle(
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
@@ -247,19 +300,27 @@ class _AdminFoodRulesScreenState extends State<AdminFoodRulesScreen> {
                           final foodName = data['name'] ?? doc.id;
                           final carbs = data['carbs'] ?? 0;
                           final calories = data['calories'] ?? 0;
+                          final diabetesType =
+                              data['diabetesType'] ?? 'Not set';
+                          final category = data['category'] ?? 'Not set';
 
                           return Card(
                             child: ListTile(
                               title: Text(foodName.toString().toUpperCase()),
                               subtitle: Text(
-                                '${carbs}g carbs, ${calories} cal per 100g',
+                                '${carbs}g carbs, ${calories} cal per 100g\n$diabetesType • $category',
                               ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Chip(
-                                    label: Text('Auto-categorized'),
-                                    backgroundColor: Colors.blue,
+                                  Chip(
+                                    label: Text(
+                                      category == 'Do' ? '✅ Do' : "🚫 Don't",
+                                    ),
+                                    backgroundColor:
+                                        category == 'Do'
+                                            ? Colors.green
+                                            : Colors.red,
                                   ),
                                   IconButton(
                                     icon: const Icon(

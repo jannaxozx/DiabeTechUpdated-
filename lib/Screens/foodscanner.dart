@@ -39,7 +39,17 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   String? _capturedImagePath;
 
   static const String _geminiApiKey = geminiApiKey;
-  static const String _geminiModel = 'gemini-1.5-flash-latest';
+
+  // Fallback models in case primary model has quota issues
+  static const List<String> _fallbackModels = [
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash-lite',
+  ];
+
+  // Rate limiting to prevent quota exhaustion
+  DateTime? _lastScanTime;
+  static const Duration _minScanInterval = Duration(seconds: 5);
 
   @override
   void initState() {
@@ -172,6 +182,22 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
   Future<void> _captureAndScan() async {
     final ctrl = _cameraController;
     if (ctrl == null || !_isCameraReady || _isLoading) return;
+
+    // Rate limiting check
+    if (_lastScanTime != null) {
+      final timeSinceLastScan = DateTime.now().difference(_lastScanTime!);
+      if (timeSinceLastScan < _minScanInterval) {
+        final waitSeconds = (_minScanInterval - timeSinceLastScan).inSeconds;
+        _showError(
+          'Please wait $waitSeconds seconds before scanning again.\n\n'
+          'This helps prevent API quota exhaustion.',
+        );
+        return;
+      }
+    }
+
+    _lastScanTime = DateTime.now();
+
     try {
       if (_flashOn) await ctrl.setFlashMode(FlashMode.off);
       final xFile = await ctrl.takePicture();
@@ -239,6 +265,37 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
     String imagePath,
     List<String> knownFoods,
   ) async {
+    // Try each model in the fallback list
+    for (int i = 0; i < _fallbackModels.length; i++) {
+      final modelToTry = _fallbackModels[i];
+      debugPrint(
+        '🔄 Trying model: $modelToTry (attempt ${i + 1}/${_fallbackModels.length})',
+      );
+
+      final result = await _tryGeminiModel(imagePath, knownFoods, modelToTry);
+
+      if (result != null) {
+        debugPrint('✅ Success with model: $modelToTry');
+        return result;
+      }
+
+      // If not the last model, continue to next
+      if (i < _fallbackModels.length - 1) {
+        debugPrint('⚠️ Model $modelToTry failed, trying next...');
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+
+    // All models failed
+    debugPrint('❌ All models failed');
+    return null;
+  }
+
+  Future<String?> _tryGeminiModel(
+    String imagePath,
+    List<String> knownFoods,
+    String modelName,
+  ) async {
     try {
       // Compress image to reduce size and improve upload speed
       var bytes = await File(imagePath).readAsBytes();
@@ -254,11 +311,6 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
 
       final b64 = base64Encode(bytes);
 
-      final hint =
-          knownFoods.isNotEmpty
-              ? '\n\nFOOD DATABASE — if food matches any of these, return that EXACT name:\n${knownFoods.take(80).join(', ')}'
-              : '';
-
       final prompt =
           'Identify the food in this image.\n'
           'Reply with ONLY this JSON — no extra text, no markdown:\n'
@@ -272,7 +324,13 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
 
       final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models/'
-        '$_geminiModel:generateContent?key=$_geminiApiKey',
+        '$modelName:generateContent?key=$_geminiApiKey',
+      );
+
+      debugPrint('🔍 Calling Gemini API...');
+      debugPrint('Model: $modelName');
+      debugPrint(
+        'URL: ${url.toString().replaceAll(_geminiApiKey, 'API_KEY_HIDDEN')}',
       );
 
       final response = await http
@@ -305,24 +363,43 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           );
 
       debugPrint('Gemini status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
 
       if (response.statusCode != 200) {
-        String userMsg = 'AI Service Error (${response.statusCode})';
         try {
           final err = jsonDecode(response.body);
           final msg = err['error']?['message']?.toString() ?? '';
-          if (msg.contains('API key not valid')) {
-            userMsg = 'Invalid API Key.\nPlease check lib/config.dart';
-          } else if (msg.contains('quota')) {
-            userMsg = 'API quota exhausted.\nPlease try again later.';
+          debugPrint('Error message: $msg');
+
+          // For quota errors, return null to try next model
+          if (msg.contains('quota')) {
+            debugPrint(
+              '⚠️ Quota exhausted for $modelName, will try fallback...',
+            );
+            return null;
+          }
+
+          // For other errors, show message and return null
+          String userMsg = 'AI Service Error (${response.statusCode})';
+          if (msg.contains('API key not valid') ||
+              msg.contains('API key expired')) {
+            userMsg =
+                'API Key Expired or Invalid!\n\nPlease get a new API key from:\nhttps://aistudio.google.com/apikey\n\nThen update lib/config.dart';
+            _showError(userMsg);
           } else if (msg.contains('not found')) {
-            userMsg = 'AI Model Error.\nCheck Debug Console for details.';
-            _debugListModels(); // List models to console for debugging
+            debugPrint('Model $modelName not found, trying next...');
+            return null; // Try next model
+          } else if (msg.contains('leaked')) {
+            userMsg =
+                'API Key Compromised!\n\nYour API key was reported as leaked.\nPlease get a new one from:\nhttps://aistudio.google.com/apikey';
+            _showError(userMsg);
           } else if (msg.isNotEmpty) {
             userMsg = 'AI error: $msg';
+            _showError(userMsg);
           }
-        } catch (_) {}
-        _showError(userMsg);
+        } catch (e) {
+          debugPrint('Error parsing response: $e');
+        }
         return null;
       }
 
@@ -357,20 +434,6 @@ class _FoodScannerScreenState extends State<FoodScannerScreen>
           ?.toString();
     } catch (_) {
       return null;
-    }
-  }
-
-  /// Diagnostic: Lists available models to the debug console
-  Future<void> _debugListModels() async {
-    try {
-      final res = await http.get(Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models?key=$_geminiApiKey',
-      ));
-      debugPrint('--- SUPPORTED MODELS FOR THIS KEY ---');
-      debugPrint(res.body);
-      debugPrint('---------------------------------------');
-    } catch (e) {
-      debugPrint('Failed to list models: $e');
     }
   }
 
