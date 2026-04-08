@@ -262,8 +262,6 @@ class AdminFoodDetailScreen extends StatelessWidget {
           // Data
           final data = snap.data!.data() as Map<String, dynamic>;
           final name = (data['name'] ?? 'Unknown').toString();
-          final category = (data['category'] ?? '').toString();
-          final dtType = (data['diabetesType'] ?? 'Mild').toString();
           final portion = (data['portionSize'] ?? 'N/A').toString();
           final imageUrl =
               (data['imageUrl'] ?? data['imagePath'] ?? '').toString();
@@ -274,11 +272,6 @@ class AdminFoodDetailScreen extends StatelessWidget {
           final prot = _dbl(data['protein']);
           final fat = _dbl(data['fat']);
 
-          final isGood = category == 'Do';
-          final catC = isGood ? _green : _red;
-          final catPal = isGood ? _greenPal : _redPal;
-          final dtC = dtType == 'Severe' ? _red : _green;
-          final dtPal = dtType == 'Severe' ? _redPal : _greenPal;
           final total = carbs + prot + fat;
 
           return SingleChildScrollView(
@@ -308,10 +301,10 @@ class AdminFoodDetailScreen extends StatelessWidget {
                         width: 64,
                         height: 64,
                         decoration: BoxDecoration(
-                          color: catPal,
+                          color: _greenPal,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: catC.withOpacity(0.2),
+                            color: _green.withOpacity(0.2),
                             width: 1.5,
                           ),
                         ),
@@ -325,17 +318,17 @@ class AdminFoodDetailScreen extends StatelessWidget {
                                     height: 64,
                                     fit: BoxFit.cover,
                                     errorBuilder:
-                                        (_, __, ___) => Icon(
+                                        (_, __, ___) => const Icon(
                                           Icons.restaurant_rounded,
                                           size: 28,
-                                          color: catC,
+                                          color: _green,
                                         ),
                                   ),
                                 )
-                                : Icon(
+                                : const Icon(
                                   Icons.restaurant_rounded,
                                   size: 28,
-                                  color: catC,
+                                  color: _green,
                                 ),
                       ),
                       const SizedBox(width: 12),
@@ -380,21 +373,13 @@ class AdminFoodDetailScreen extends StatelessWidget {
                               ),
                             ],
                             const SizedBox(height: 7),
-                            Wrap(
-                              spacing: 5,
-                              runSpacing: 4,
-                              children: [
-                                _badge(
-                                  isGood ? '✅ Recommended' : '❌ Avoid',
-                                  catC,
-                                  catPal,
-                                ),
-                                _badge(
-                                  '${dtType == 'Severe' ? '🔴' : '🟢'} $dtType',
-                                  dtC,
-                                  dtPal,
-                                ),
-                              ],
+                            const Text(
+                              'Category auto-determined per user',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: _grey3,
+                                fontStyle: FontStyle.italic,
+                              ),
                             ),
                           ],
                         ),
@@ -477,17 +462,42 @@ class AdminFoodDetailScreen extends StatelessWidget {
                       ),
                       Divider(height: 1, color: _grey4),
                       _infoRow(
-                        Icons.restaurant_menu_rounded,
-                        catC,
+                        Icons.auto_awesome_rounded,
+                        _green,
                         'Category',
-                        isGood ? 'Recommended (Do)' : "Avoid (Don't)",
+                        'Auto-determined per user',
                       ),
                       Divider(height: 1, color: _grey4),
-                      _infoRow(
-                        Icons.health_and_safety_rounded,
-                        dtC,
-                        'Diabetes Type',
-                        '$dtType Diabetes',
+                      Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: _blue.withOpacity(0.09),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.info_outline_rounded,
+                                color: _blue,
+                                size: 15,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                'App determines Do/Don\'t based on carb content and user\'s diabetes type',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: _grey3,
+                                  fontStyle: FontStyle.italic,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -604,19 +614,6 @@ class AdminFoodDetailScreen extends StatelessWidget {
       fontSize: 13,
       fontWeight: FontWeight.w700,
       color: _grey1,
-    ),
-  );
-
-  Widget _badge(String label, Color color, Color pal) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-    decoration: BoxDecoration(
-      color: pal,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.22)),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color),
     ),
   );
 
