@@ -19,9 +19,7 @@ import 'supabase_config.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await SupabaseConfig.initialize();
 
@@ -36,9 +34,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'DiabeTech',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.purple,
-      ),
+      theme: ThemeData(primarySwatch: Colors.purple),
       home: const InitialScreen(),
     );
   }
@@ -82,10 +78,11 @@ class _InitialScreenState extends State<InitialScreen> {
     }
 
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
 
       final role = snapshot.data()?['role'] ?? 'user';
 
@@ -104,16 +101,11 @@ class _InitialScreenState extends State<InitialScreen> {
   }
 
   void _navigate(Widget page) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => page),
-    );
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => page));
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
